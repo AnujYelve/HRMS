@@ -38,6 +38,7 @@ app.use((req, res, next) => {
 ============================================================ */
 const allowedOrigins = [
   "http://localhost:5173",
+  "https://hrms-xi-neon.vercel.app",
   "http://localhost:4000",
   process.env.CLIENT_URL, // optional
 ].filter(Boolean);

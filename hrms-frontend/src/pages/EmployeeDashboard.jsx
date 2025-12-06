@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import api from "../api/axios";
-import { Line } from "react-chartjs-2";
+import { Line, Bar } from "react-chartjs-2";
 import clsx from "clsx";
 import {
   Chart as ChartJS,
@@ -10,6 +10,7 @@ import {
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Tooltip,
   Legend,
 } from "chart.js";
@@ -39,7 +40,6 @@ export default function EmployeeDashboard() {
   /* ======================================================================================
      ATTENDANCE CALENDAR WITH WFH COLOR
   ====================================================================================== */
-// Small Monthly Attendance Calendar (Dashboard)
 // Small Monthly Attendance Calendar (Dashboard)
 const SmallMonthCalendar = ({ attendance = [] }) => {
   const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -208,25 +208,58 @@ const SmallMonthCalendar = ({ attendance = [] }) => {
   /* ======================================================================================
      ATTENDANCE TREND (Chart)
   ====================================================================================== */
-  const attendanceLine = useMemo(() => {
-    if (!data) return null;
+const attendanceBar = useMemo(() => {
+  if (!data) return null;
 
-    return {
-      labels: data.stats.attendanceTrend.map((i) =>
-        new Date(i.date).toLocaleDateString()
-      ),
-      datasets: [
-        {
-          label: "Present",
-          data: data.stats.attendanceTrend.map((i) => (i.checkIn ? 1 : 0)),
-          borderColor: "#10B981",
-          backgroundColor: "rgba(16,185,129,0.15)",
-          tension: 0.4,
-          fill: true,
-        },
-      ],
-    };
-  }, [data]);
+  const months = Array.from({ length: 12 }, () => ({
+    present: 0,
+    wfh: 0,
+    leave: 0,
+  }));
+
+  data.stats.attendance.forEach((a) => {
+    const date = new Date(a.date);
+    const m = date.getMonth();
+
+    if (a.checkIn) months[m].present += 1;
+    if (a.status === "WFH") months[m].wfh += 1;
+    if (a.status === "LEAVE") months[m].leave += 1;
+  });
+
+  // 🔥 REAL MAX VALUE
+  const maxValue = Math.max(
+    ...months.map((m) => Math.max(m.present, m.wfh, m.leave))
+  );
+
+  // 🔥 Y-axis ko perfect round banane ka logic
+  let autoMax = Math.ceil((maxValue + 1) / 2) * 2;
+  if (autoMax < 4) autoMax = 4; // minimum 4
+
+  return {
+    labels: [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    ],
+    datasets: [
+      {
+        label: "Present",
+        data: months.map((m) => m.present),
+        backgroundColor: "#10B981",
+      },
+      {
+        label: "WFH",
+        data: months.map((m) => m.wfh),
+        backgroundColor: "#3B82F6",
+      },
+      {
+        label: "Leave",
+        data: months.map((m) => m.leave),
+        backgroundColor: "#FACC15",
+      }
+    ],
+    autoMax,
+  };
+}, [data]);
 
   const Skeleton = ({ className }) => (
     <div
@@ -330,18 +363,43 @@ const SmallMonthCalendar = ({ attendance = [] }) => {
 
           {/* Chart */}
           <div className="p-4 bg-white/80 dark:bg-gray-800/50 rounded-2xl shadow">
-            <h3 className="font-semibold mb-3">Attendance Trend (7 days)</h3>
+            <h3 className="font-semibold mb-3">Attendance Trend</h3>
 
             {loading ? (
               <Skeleton className="h-40" />
             ) : (
-              <Line
-                data={attendanceLine}
-                options={{
-                  plugins: { legend: { display: false } },
-                  scales: { y: { min: 0, max: 1 } },
-                }}
-              />
+<Bar
+  data={attendanceBar}
+  options={{
+    responsive: true,
+    plugins: {
+      legend: { position: "top" },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        max: attendanceBar.autoMax, // 🔥 AUTO MAX VALUE
+        ticks: {
+          stepSize: 2,
+          color: "#6B7280",
+          font: {
+            size: 12,
+            weight: "bold",
+          },
+        },
+        grid: {
+          color: "rgba(0,0,0,0.1)",
+        },
+      },
+      x: {
+        ticks: {
+          color: "#6B7280",
+          font: { size: 12 },
+        },
+      },
+    },
+  }}
+/>
             )}
           </div>
         </div>

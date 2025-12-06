@@ -219,7 +219,7 @@ const loadAttendance = useCallback(
       setKpi({ present, leave, wfh });
 
       setCalendar(newCal);
-      setDailyLogs(newLogs);
+      setDailyLogs([...newLogs].reverse());
     } finally {
       setLoading(false);
     }
