@@ -52,7 +52,7 @@ const validateManagerReimbursementAccess = async (reimbursementId, managerId) =>
 };
 
 const getFullUrl = (file) => {
-  const base = process.env.SERVER_URL || "http://localhost:4000";
+  const base ="https://www.agilityai.in";
   return `${base}/${file}`.replace(/([^:]\/)\/+/g, "$1");
 };
 
