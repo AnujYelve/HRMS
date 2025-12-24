@@ -1,4 +1,6 @@
 import prisma from "../prismaClient.js";
+import { sendRequestNotificationMail } from "../utils/sendMail.js";
+import { getAdminAndManagers } from "../utils/getApprovers.js";
 
 const isHalfDay = (type) => type === "HALF_DAY";
 
@@ -97,6 +99,27 @@ if (overlappingLeaves.length > 0) {
         approver: true,
       },
     });
+/* ================= 📧 MAIL TO ADMIN + MANAGER ================= */
+try {
+  const approverEmails = await getAdminAndManagers(req.user.id);
+
+  if (approverEmails.length > 0) {
+    await sendRequestNotificationMail({
+      to: approverEmails,
+      subject: "New Leave Request Submitted",
+      title: "Leave / WFH / Half-Day Request",
+      employeeName: `${leave.user.firstName} ${leave.user.lastName}`,
+      details: [
+        `Type: ${getLeaveTypeName(type)}`,
+        `From: ${startDate}`,
+        `To: ${endDate}`,
+        reason && `Reason: ${reason}`,
+      ].filter(Boolean),
+    });
+  }
+} catch (mailErr) {
+  console.error("Leave notification mail failed:", mailErr.message);
+}
 
     return res.json({
       success: true,
@@ -302,6 +325,13 @@ export const approveLeave = async (req, res) => {
         message: "Leave not found",
       });
     }
+    // ❌ BLOCK SELF APPROVAL (MOST IMPORTANT)
+   if (leave.userId === req.user.id) {
+    return res.status(403).json({
+     success: false,
+     message: "You cannot approve or reject your own leave",
+     });
+   }
 
     /* =====================================================
        🔐 PERMISSION CHECK
@@ -370,6 +400,24 @@ export const approveLeave = async (req, res) => {
         approver: true,
       },
     });
+/* ================= 📧 MAIL TO EMPLOYEE (APPROVE / REJECT) ================= */
+try {
+  await sendRequestNotificationMail({
+    to: [updated.user.email], // 👈 jisne request bheji
+    subject: `Leave Request ${action}`,
+    title: "Leave Status Update",
+    employeeName: `${updated.user.firstName} ${updated.user.lastName}`,
+    details: [
+      `Type: ${getLeaveTypeName(updated.type)}`,
+      `From: ${updated.startDate.toDateString()}`,
+      `To: ${updated.endDate.toDateString()}`,
+      `Status: ${action}`,
+      action === "REJECTED" && `Reason: ${reason || "Not specified"}`,
+    ].filter(Boolean),
+  });
+} catch (mailErr) {
+  console.error("Leave approve/reject mail failed:", mailErr.message);
+}
 
     return res.json({
       success: true,

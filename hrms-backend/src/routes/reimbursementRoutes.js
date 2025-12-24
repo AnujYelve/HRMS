@@ -10,6 +10,7 @@ import {
   updateReimbursementStatus,
   employeeDeleteReimbursement,
   adminDeleteReimbursement,
+  exportReimbursements,
 } from "../controllers/reimbursementController.js";
 
 import { requireAuth } from "../middlewares/auth.js";
@@ -69,6 +70,15 @@ router.delete(
   "/admin/:id",
   requireAuth(["ADMIN"]),
   adminDeleteReimbursement
+);
+
+/* =====================================================
+   📤 EXPORT (CSV / EXCEL)
+===================================================== */
+router.get(
+  "/export",
+  requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
+  exportReimbursements
 );
 
 /* =====================================================

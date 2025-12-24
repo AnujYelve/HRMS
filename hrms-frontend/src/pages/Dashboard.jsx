@@ -7,27 +7,52 @@ import useAuthStore from "../stores/authstore";
 
 export default function Dashboard() {
   const user = useAuthStore((s) => s.user);
-  const isManager = user?.managedDepartments?.length > 0;
   const location = useLocation();
 
-  const getViewFromURL = () => {
-    const params = new URLSearchParams(location.search);
-    return params.get("view") === "manager" ? "MANAGER" : "EMPLOYEE";
-  };
+  // 🔥 SINGLE SOURCE OF TRUTH
+  const isManager = user?.managedDepartments?.length > 0;
 
-  const [view, setView] = useState(getViewFromURL());
+  // Default view
+  const [view, setView] = useState("EMPLOYEE");
 
+  /* =====================================================
+     1️⃣ SYNC VIEW AFTER USER LOAD (FIRST LOGIN FIX)
+  ===================================================== */
   useEffect(() => {
-    setView(getViewFromURL());
-  }, [location.search]);
+    if (!user) return;
 
-  // 🔥 ADMIN
-  if (user.role === "ADMIN") {
+    const params = new URLSearchParams(location.search);
+    const urlView = params.get("view");
+
+    if (urlView === "manager" && isManager) {
+      setView("MANAGER");
+    } else if (isManager) {
+      // 🔥 FIRST LOGIN → AUTO MANAGER DASHBOARD
+      setView("MANAGER");
+    } else {
+      setView("EMPLOYEE");
+    }
+  }, [user, isManager, location.search]);
+
+  /* =====================================================
+     2️⃣ SAFETY: MANAGER RIGHTS REMOVED
+  ===================================================== */
+  useEffect(() => {
+    if (view === "MANAGER" && !isManager) {
+      setView("EMPLOYEE");
+    }
+  }, [view, isManager]);
+
+  /* =====================================================
+     3️⃣ ADMIN
+  ===================================================== */
+  if (user?.role === "ADMIN") {
     return <AdminDashboard />;
   }
 
   return (
     <div className="space-y-4">
+      {/* 🔀 TOGGLE (ONLY FOR MANAGER) */}
       {isManager && (
         <div className="flex gap-2 bg-gray-100 dark:bg-gray-800 p-2 rounded-xl w-fit">
           <button
@@ -54,6 +79,7 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* 🧠 CONTENT */}
       {view === "MANAGER" && isManager ? (
         <ManagerDashboard />
       ) : (

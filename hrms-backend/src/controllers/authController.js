@@ -18,7 +18,27 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+   const user = await prisma.user.findUnique({
+  where: { email },
+  include: {
+    managedDepartments: {
+      select: {
+        id: true,
+        name: true,
+      },
+    },
+    departments: {
+      include: {
+        department: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    },
+  },
+});
     if (!user) return res.status(400).json({ message: "Invalid credentials" });
 
     if (!user.isActive) {
@@ -57,16 +77,20 @@ export const login = async (req, res) => {
     // ---------------------------------------
     // RETURN BOTH TOKENS (NO COOKIES)
     // ---------------------------------------
-    return res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        role: user.role,
-      },
-      accessToken,
-      refreshToken,
-    });
+return res.json({
+  user: {
+    id: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    role: user.role,
+
+    // 🔥 ADD THESE TWO
+    managedDepartments: user.managedDepartments,
+    departments: user.departments,
+  },
+  accessToken,
+  refreshToken,
+});
 
   } catch (err) {
     console.error("LOGIN ERROR:", err);

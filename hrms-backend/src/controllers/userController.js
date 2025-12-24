@@ -1,5 +1,6 @@
 import prisma from "../prismaClient.js";
 import bcrypt from "bcryptjs";
+import { sendUserCredentialsMail } from "../utils/sendMail.js";
 const TOTAL_YEARLY_LEAVES = 21;
 
 /* ============================================================
@@ -19,7 +20,7 @@ export const getMe = async (req, res) => {
         // 🔴 legacy (keep)
         departmentId: true,
 
-        // 🟢 multi-department
+        // 🟢 multi-department (employee)
         departments: {
           include: {
             department: {
@@ -28,12 +29,14 @@ export const getMe = async (req, res) => {
           }
         },
 
+        // 🟢 manager departments
         managedDepartments: {
-         select: {
-           id: true,
-           name: true
-         }
+          select: {
+            id: true,
+            name: true
+          }
         },
+
         position: true,
         salary: true,
         createdAt: true,
@@ -41,7 +44,24 @@ export const getMe = async (req, res) => {
       },
     });
 
-    return res.json({ success: true, user });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // 🔥 ADD THIS FLAG
+    const isManager = user.managedDepartments.length > 0;
+
+    return res.json({
+      success: true,
+      user: {
+        ...user,
+        isManager, // 👈 ⭐ IMPORTANT
+      },
+    });
+
   } catch (err) {
     console.error("getMe ERROR:", err);
     return res.status(500).json({
@@ -214,7 +234,13 @@ export const createUser = async (req, res) => {
     }
 
     /* ===================== PASSWORD ===================== */
-    const hashed = await bcrypt.hash(password, 10);
+    // generate password if admin ne nahi diya
+const plainPassword =
+  password && password !== "password123"
+    ? password
+    : Math.random().toString(36).slice(-8);
+
+const hashed = await bcrypt.hash(plainPassword, 10);
 
     /* ===================== CREATE USER ===================== */
     const user = await prisma.user.create({
@@ -229,6 +255,17 @@ export const createUser = async (req, res) => {
         departmentId: departmentId || null,
       },
     });
+    // 📧 SEND LOGIN CREDENTIALS MAIL
+try {
+  await sendUserCredentialsMail({
+    to: email,
+    name: firstName,
+    email,
+    password: plainPassword,
+  });
+} catch (mailErr) {
+  console.error("Credential mail failed:", mailErr.message);
+}
 
     /* ===================== MULTI-DEPARTMENT LINK ===================== */
     // Priority: departmentIds[] → departmentId
@@ -341,10 +378,13 @@ export const updateUser = async (req, res) => {
     /* ====================================================
        🔐 PASSWORD
     ==================================================== */
-    if (data.password) {
-      data.password = await bcrypt.hash(data.password, 10);
-    }
-
+let plainPassword = null;
+if (typeof data.password === "string" && data.password.trim() !== "") {
+  plainPassword = data.password;              // 👈 store plain
+  data.password = await bcrypt.hash(plainPassword, 10);
+} else {
+  delete data.password; // 🔒 do not touch password
+}
     /* ====================================================
        🟢 MULTI-DEPARTMENT SYNC (SAFE + BACKWARD COMPATIBLE)
     ==================================================== */
@@ -373,25 +413,40 @@ export const updateUser = async (req, res) => {
     /* ====================================================
        ✅ UPDATE USER
     ==================================================== */
-    const updated = await prisma.user.update({
-      where: { id: targetId },
-      data,
+const updated = await prisma.user.update({
+  where: { id: targetId },
+  data,
+  include: {
+    departments: {
       include: {
-        departments: {
-          include: {
-            department: {
-              select: { id: true, name: true },
-            },
-          },
+        department: {
+          select: { id: true, name: true },
         },
       },
-    });
+    },
+  },
+});
 
-    return res.json({
-      success: true,
-      message: "User updated successfully",
-      user: updated,
+// 📧 SEND MAIL ONLY IF PASSWORD WAS CHANGED
+if (plainPassword) {
+  try {
+    await sendUserCredentialsMail({
+      to: updated.email,
+      name: updated.firstName,
+      email: updated.email,
+      password: plainPassword,
+      isReset: true, // optional flag
     });
+  } catch (mailErr) {
+    console.error("Password update mail failed:", mailErr.message);
+  }
+}
+
+return res.json({
+  success: true,
+  message: "User updated successfully",
+  user: updated,
+});
 
   } catch (err) {
     console.error("updateUser ERROR:", err);

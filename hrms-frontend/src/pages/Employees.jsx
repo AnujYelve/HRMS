@@ -93,27 +93,23 @@ export default function Employees() {
   };
 
   /* Save user */
-  const submit = async (e) => {
-    e.preventDefault();
-    setErrorMsg("");
+const submit = async (e) => {
+  e.preventDefault();
+  setErrorMsg("");
 
-    try {
-      if (editUser) {
-        await api.put(`/users/${editUser.id}`, form);
-        setMsg("Employee updated successfully");
-        setMsgType("success");
-      } else {
-        await api.post(`/users`, form);
-        setMsg("Employee created successfully");
-        setMsgType("success");
-      }
+  try {
+    await api[editUser ? "put" : "post"](
+      editUser ? `/users/${editUser.id}` : "/users",
+      form
+    );
 
-      setModalOpen(false);
-      load();
-    } catch (err) {
-      setErrorMsg(err.response?.data?.message || "Error saving user");
-    }
-  };
+    setMsg(editUser ? "Employee updated successfully" : "Employee created successfully");
+    setModalOpen(false);
+    load();
+  } catch (err) {
+    setErrorMsg(err.response?.data?.message || "Error saving user");
+  }
+};
 
   /* Ask for delete */
   const askDelete = (id) => {
@@ -492,25 +488,25 @@ function UserForm({ form, setForm, submit, close, editUser, errorMsg, me, depart
   </div>
 )}
 
-        {!editUser && (
-          <div className="relative">
-            <input
-              className="input pr-10"
-              type={showPassword ? "text" : "password"}
-              placeholder="Password"
-              value={form.password}
-              onChange={(e) => update("password", e.target.value)}
-            />
+{me?.role === "ADMIN" && (
+  <div className="relative">
+    <input
+      className="input pr-10"
+      type={showPassword ? "text" : "password"}
+      placeholder={editUser ? "New password (optional)" : "Password"}
+      value={form.password}
+      onChange={(e) => update("password", e.target.value)}
+    />
 
-            <button
-              type="button"
-              onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 dark:text-gray-300"
-            >
-              {showPassword ? <FiEye size={18} /> : <FiEyeOff size={18} />}
-            </button>
-          </div>
-        )}
+    <button
+      type="button"
+      onClick={() => setShowPassword((p) => !p)}
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 dark:text-gray-300"
+    >
+      {showPassword ? <FiEye size={18} /> : <FiEyeOff size={18} />}
+    </button>
+  </div>
+)}
 
         <div className="flex justify-end gap-2 sm:gap-3 pt-3">
           <button

@@ -46,10 +46,20 @@ const [selectedEmployees, setSelectedEmployees] = useState([]);
 const [notifTitle, setNotifTitle] = useState("");
 const [notifBody, setNotifBody] = useState("");
 const [notifications, setNotifications] = useState([]);
+
+const [msg, setMsg] = useState("");
+const [msgType, setMsgType] = useState("success"); // success | error
+
 /* =========================================================
    🔁 LEAVE HELPERS (SAME AS ADMIN)
 ========================================================= */
   /* ================= LOAD DATA ================= */
+  useEffect(() => {
+  if (!msg) return;
+  const t = setTimeout(() => setMsg(""), 2000);
+  return () => clearTimeout(t);
+}, [msg]);
+
   useEffect(() => {
     loadData();
     // eslint-disable-next-line
@@ -129,32 +139,67 @@ case "NOTIFICATIONS": {
   /* ================= ACTIONS ================= */
 
   // ---- LEAVES ----
-  const approveLeave = async (id) => {
-   await api.patch(`/leaves/${id}/approve`, {
-  action: "APPROVED"
-});
+ const approveLeave = async (id) => {
+  try {
+    await api.patch(`/leaves/${id}/approve`, {
+      action: "APPROVED",
+    });
 
+    setMsg("Leave approved successfully");
+    setMsgType("success");
     loadData();
-  };
 
-  const rejectLeave = async (id) => {
-    const reason = prompt("Reject reason?");
-    if (!reason) return;
-   await api.patch(`/leaves/${id}/approve`, {
-  action: "REJECTED",
-  reason
-});
+  } catch (err) {
+    setMsg(
+      err?.response?.data?.message ||
+      "You are not allowed to approve this leave"
+    );
+    setMsgType("error");
+  }
+};
 
+const rejectLeave = async (id) => {
+  const reason = prompt("Reject reason?");
+  if (!reason) return;
+
+  try {
+    await api.patch(`/leaves/${id}/approve`, {
+      action: "REJECTED",
+      reason,
+    });
+
+    setMsg("Leave rejected successfully");
+    setMsgType("success");
     loadData();
-  };
+
+  } catch (err) {
+    setMsg(
+      err?.response?.data?.message ||
+      "You are not allowed to reject this leave"
+    );
+    setMsgType("error");
+  }
+};
 
   // ---- REIMBURSEMENTS ----
 // ✅ APPROVE
 const approveReimbursement = async (id) => {
-  await api.patch(`/reimbursement/${id}/status`, {
-    status: "APPROVED",
-  });
-  loadData();
+  try {
+    await api.patch(`/reimbursement/${id}/status`, {
+      status: "APPROVED",
+    });
+
+    setMsg("Reimbursement approved successfully");
+    setMsgType("success");
+    loadData();
+
+  } catch (err) {
+    setMsg(
+      err?.response?.data?.message ||
+      "You are not allowed to approve this reimbursement"
+    );
+    setMsgType("error");
+  }
 };
 
 // ✅ REJECT
@@ -162,11 +207,23 @@ const rejectReimbursement = async (id) => {
   const reason = prompt("Reject reason?");
   if (!reason) return;
 
-  await api.patch(`/reimbursement/${id}/status`, {
-    status: "REJECTED",
-    reason,
-  });
-  loadData();
+  try {
+    await api.patch(`/reimbursement/${id}/status`, {
+      status: "REJECTED",
+      reason,
+    });
+
+    setMsg("Reimbursement rejected successfully");
+    setMsgType("success");
+    loadData();
+
+  } catch (err) {
+    setMsg(
+      err?.response?.data?.message ||
+      "You are not allowed to reject this reimbursement"
+    );
+    setMsgType("error");
+  }
 };
 
   /* ================= UI ================= */
@@ -179,6 +236,17 @@ return (
         Welcome {user.firstName}, manage your team here
       </p>
     </div>
+    {msg && (
+  <div
+    className={`mb-4 px-4 py-2 rounded text-sm ${
+      msgType === "success"
+        ? "bg-green-100 text-green-700"
+        : "bg-red-100 text-red-700"
+    }`}
+  >
+    {msg}
+  </div>
+)}
 
     {/* TABS */}
     <div className="flex gap-2 flex-wrap">

@@ -2,6 +2,10 @@ import prisma from "../prismaClient.js";
 import multer from "multer";
 import fs from "fs";
 import path from "path";
+import { sendRequestNotificationMail } from "../utils/sendMail.js";
+import { getAdminAndManagers } from "../utils/getApprovers.js";
+import { Parser } from "json2csv";
+import ExcelJS from "exceljs";
 
 /* =====================================================
    📦 STORAGE
@@ -70,6 +74,9 @@ const updateStatus = async ({ id, status, reason = null }) => {
       status,
       rejectReason: status === "REJECTED" ? reason || "" : null,
     },
+    include: {
+      user: true, // 👈 IMPORTANT
+    },
   });
 };
 
@@ -121,7 +128,26 @@ export const createReimbursement = async (req, res) => {
       },
       include: { bills: true },
     });
+/* ================= 📧 MAIL TO ADMIN + MANAGER ================= */
+try {
+  const approverEmails = await getAdminAndManagers(req.user.id);
 
+  if (approverEmails.length > 0) {
+    await sendRequestNotificationMail({
+      to: approverEmails,
+      subject: "New Reimbursement Request Submitted",
+      title: "Reimbursement Request",
+      employeeName: `${req.user.firstName} ${req.user.lastName}`,
+      details: [
+        `Title: ${title}`,
+        `Total Amount: ₹${calculateTotal(bills)}`,
+        description && `Description: ${description}`,
+      ].filter(Boolean),
+    });
+  }
+} catch (mailErr) {
+  console.error("Reimbursement notification mail failed:", mailErr.message);
+}
     res.json({
       success: true,
       message: "Reimbursement submitted",
@@ -255,6 +281,29 @@ export const updateReimbursementStatus = async (req, res) => {
       });
     }
 
+    /* ================= 🔥 NEW PART ================= */
+
+    // 1️⃣ Fetch reimbursement owner
+    const record = await prisma.reimbursement.findUnique({
+      where: { id },
+      select: { userId: true },
+    });
+
+    if (!record) {
+      return res.status(404).json({
+        success: false,
+        message: "Reimbursement not found",
+      });
+    }
+
+    // 2️⃣ ❌ BLOCK SELF APPROVAL
+    if (record.userId === req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot approve or reject your own reimbursement",
+      });
+    }
+
     /* ================= ACCESS CONTROL ================= */
 
     if (req.user.role === "ADMIN") {
@@ -266,17 +315,36 @@ export const updateReimbursementStatus = async (req, res) => {
 
     /* ================================================= */
 
-const reimbursement = await updateStatus({
-  id,
-  status,
-  reason,
-});
+    const reimbursement = await updateStatus({
+      id,
+      status,
+      reason,
+    });
+
+    /* ================= 📧 MAIL TO EMPLOYEE ================= */
+    try {
+      await sendRequestNotificationMail({
+        to: [reimbursement.user.email],
+        subject: `Reimbursement ${status}`,
+        title: "Reimbursement Status Update",
+        employeeName: `${reimbursement.user.firstName} ${reimbursement.user.lastName}`,
+        details: [
+          `Title: ${reimbursement.title}`,
+          `Amount: ₹${reimbursement.totalAmount}`,
+          `Status: ${status}`,
+          status === "REJECTED" && `Reason: ${reason || "Not specified"}`,
+        ].filter(Boolean),
+      });
+    } catch (mailErr) {
+      console.error("Reimbursement approve/reject mail failed:", mailErr.message);
+    }
 
     return res.json({
       success: true,
       message: `Reimbursement ${status.toLowerCase()}`,
       reimbursement,
     });
+
   } catch (e) {
     console.error("updateReimbursementStatus ERROR:", e);
     return res.status(403).json({
@@ -303,5 +371,138 @@ export const adminDeleteReimbursement = async (req, res) => {
     res.json({ success: true, message: "Removed from admin list" });
   } catch (e) {
     res.status(500).json({ success: false, message: "Failed" });
+  }
+};
+
+/* =====================================================
+   📤 EXPORT REIMBURSEMENTS (CSV / EXCEL)
+===================================================== */
+
+export const exportReimbursements = async (req, res) => {
+  try {
+    const user = req.user;
+    const billUrls = (bills = []) =>
+  bills.map((b) => b.fileUrl).join("\n");
+    let { start, end, userId, departmentId, format } = req.query;
+    if (!format) format = "csv";
+
+    const where = {
+      isAdminDeleted: false,
+    };
+
+    /* 🔐 ROLE BASED */
+    if (user.role !== "ADMIN") {
+      where.userId = user.id;
+    } else if (userId) {
+      where.userId = userId;
+    }
+
+    /* 📅 DATE FILTER */
+    if (start && end) {
+      where.createdAt = {
+        gte: new Date(start),
+        lte: new Date(end),
+      };
+    }
+
+    /* 🏢 DEPARTMENT FILTER */
+    if (departmentId) {
+      where.user = {
+        departments: {
+          some: {
+            departmentId: departmentId,
+          },
+        },
+      };
+    }
+
+    const rows = await prisma.reimbursement.findMany({
+      where,
+      include: {
+        user: true,
+        bills: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    /* ================= CSV ================= */
+    if (format === "csv") {
+      const parser = new Parser({
+        fields: [
+          "id",
+          "user.firstName",
+          "user.lastName",
+          "title",
+          "totalAmount",
+          "status",
+          "billUrls", 
+          "createdAt",
+        ],
+      });
+
+      const csv = parser.parse(
+        filteredRows.map((r) => ({
+          employee: `${r.user.firstName} ${r.user.lastName}`,
+          title: r.title,
+          totalAmount: r.totalAmount,
+          status: r.status,
+          billsCount: r.bills.length,
+          billUrls: r.bills.map((b) => b.fileUrl).join(" | "),
+          createdAt: r.createdAt.toISOString().split("T")[0],
+        }))
+      );
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader(
+        "Content-Disposition",
+        "attachment; filename=reimbursements.csv"
+      );
+      return res.send(csv);
+    }
+
+    /* ================= EXCEL ================= */
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Reimbursements");
+
+    sheet.columns = [
+      { header: "Employee", key: "employee", width: 25 },
+      { header: "Title", key: "title", width: 25 },
+      { header: "Total Amount", key: "amount", width: 15 },
+      { header: "Status", key: "status", width: 15 },
+      { header: "Bills Count", key: "bills", width: 15 },
+      { header: "Bill URLs", key: "billUrls", width: 60 }, 
+      { header: "Date", key: "date", width: 15 },
+    ];
+
+    rows.forEach((r) => {
+      sheet.addRow({
+        employee: `${r.user.firstName} ${r.user.lastName}`,
+        title: r.title,
+        amount: r.totalAmount,
+        status: r.status,
+        bills: r.bills.length,
+        billUrls: billUrls(r.bills),
+        date: r.createdAt.toISOString().split("T")[0],
+      });
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=reimbursements.xlsx"
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+
+  } catch (err) {
+    console.error("[exportReimbursements ERROR]", err);
+    return res.status(500).json({
+      success: false,
+      message: "Export failed",
+    });
   }
 };
