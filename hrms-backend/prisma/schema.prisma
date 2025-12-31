@@ -39,7 +39,41 @@ model User {
   // 🔥 Resignation relation added
   resignations Resignation[]
 
+  /// 🔥 CompOff balance and relation
+  compOffBalance Float       @default(0) // supports 0.5 half-day
+  compOffs       CompOff[]
+  weeklyOffs     WeeklyOff[]
+
   @@map("users")
+}
+
+/// *
+///  * ===================== WEEKLY/OFF (Roster + Weekly Supported)
+model WeeklyOff {
+  id        String    @id @default(uuid())
+  userId    String
+  offDay    String? // "Monday" (Weekly Off)
+  offDate   DateTime? // One time Date Off
+  isFixed   Boolean   @default(true) // true=Weekly repeated, false=Roster/one-time
+  user      User      @relation(fields: [userId], references: [id])
+  createdAt DateTime  @default(now())
+}
+
+/// *
+///  * ===================== COMP-OFF MODEL =====================
+model CompOff {
+  id         String    @id @default(uuid())
+  userId     String
+  workDate   DateTime
+  duration   Float     @default(1) // 1 = full, 0.5 = half ⭐
+  status     String    @default("PENDING") // APPROVED, REJECTED
+  approvedAt DateTime?
+  expiryDate DateTime?
+  note       String?
+
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 /// *
@@ -258,6 +292,7 @@ enum LeaveType {
   CASUAL
   WFH
   HALF_DAY
+  COMP_OFF
 }
 
 enum ReimbursementStatus {

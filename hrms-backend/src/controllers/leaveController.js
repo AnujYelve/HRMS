@@ -27,7 +27,16 @@ export const createLeave = async (req, res) => {
     if (!type || !startDate || !endDate) {
       return res.status(400).json({ success: false, message: "Missing fields" });
     }
-
+    // ⛔ COMP OFF but balance is zero
+    if (type === "COMP_OFF") {
+     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+     if (!user || user.compOffBalance <= 0) {
+       return res.status(400).json({
+         success: false,
+         message: "Insufficient Comp-Off balance"
+       });
+     }
+    }
     if (isHalfDay(type) && startDate !== endDate) {
       return res.status(400).json({ success: false, message: "Half Day must be for a single date" });
     }
