@@ -323,8 +323,32 @@ export const getMyAttendance = async (req, res) => {
       const iso = toLocalISO(cur);
 
       /* =========================
-         A️⃣ ATTENDANCE (TOP PRIORITY)
+      B️⃣ LEAVE (WFH / HALF_DAY / OTHERS)
       ========================= */
+      const leave = leaves.find(
+        l => new Date(l.startDate) <= cur && new Date(l.endDate) >= cur
+      );
+      
+      if (leave) {
+        const status =
+        leave.type === "WFH" ? "WFH"
+        : leave.type === "HALF_DAY" ? "HALF_DAY"  : "LEAVE";
+        
+        dailyLogs.push({
+          date: iso,
+          status,
+          checkIn: null,
+          checkOut: null
+        });
+        
+        calendar[iso] = status;
+        cur.setDate(cur.getDate() + 1);
+        continue;
+      }
+      /* =========================
+         A️⃣ ATTENDANCE
+      ========================= */
+      
       if (attendanceMap[iso]) {
         const a = attendanceMap[iso];
         dailyLogs.push({ ...a, date: iso });
@@ -332,34 +356,6 @@ export const getMyAttendance = async (req, res) => {
         cur.setDate(cur.getDate() + 1);
         continue;
       }
-
-      /* =========================
-         B️⃣ LEAVE (WFH / HALF_DAY / OTHERS)
-      ========================= */
-      const leave = leaves.find(
-        l => new Date(l.startDate) <= cur && new Date(l.endDate) >= cur
-      );
-
-      if (leave) {
-        const status =
-          leave.type === "WFH"
-            ? "WFH"
-            : leave.type === "HALF_DAY"
-            ? "HALF_DAY"
-            : "LEAVE";
-
-        dailyLogs.push({
-          date: iso,
-          status,
-          checkIn: null,
-          checkOut: null
-        });
-
-        calendar[iso] = status;
-        cur.setDate(cur.getDate() + 1);
-        continue;
-      }
-
       /* =========================
          C️⃣ HOLIDAY
       ========================= */
@@ -486,26 +482,27 @@ export const getAllAttendance = async (req, res) => {
     /* =====================================================
        5️⃣ MAPS
     ===================================================== */
-    const attendanceMap = {};
-    attendances.forEach(a => {
-      const key = `${a.userId}_${toLocalISO(a.date)}`;
-      attendanceMap[key] = a;
-    });
-
+    
     const leaveMap = {};
     leaves.forEach(l => {
       let cur = new Date(l.startDate);
       cur.setHours(0, 0, 0, 0);
       const last = new Date(l.endDate);
       last.setHours(0, 0, 0, 0);
-
+      
       while (cur <= last) {
         const key = `${l.userId}_${toLocalISO(cur)}`;
         leaveMap[key] = l.type; // PAID / SICK / CASUAL / WFH / HALF_DAY / COMP_OFF
         cur.setDate(cur.getDate() + 1);
       }
     });
-
+    
+    const attendanceMap = {};
+    attendances.forEach(a => {
+      const key = `${a.userId}_${toLocalISO(a.date)}`;
+      attendanceMap[key] = a;
+    });
+    
     const rosterWeekOffMap = {};
     weeklyOffs.forEach(w => {
       if (!w.isFixed && w.offDate) {
@@ -526,13 +523,7 @@ export const getAllAttendance = async (req, res) => {
         const iso = toLocalISO(cur);
         const key = `${emp.id}_${iso}`;
 
-        /* A️⃣ ATTENDANCE (TOP PRIORITY) */
-        if (attendanceMap[key]) {
-          rows.push(attendanceMap[key]);
-          cur.setDate(cur.getDate() + 1);
-          continue;
-        }
-
+        
         /* B️⃣ LEAVE / WFH / HALF_DAY / COMP_OFF */
         if (leaveMap[key]) {
           rows.push({
@@ -547,6 +538,13 @@ export const getAllAttendance = async (req, res) => {
           continue;
         }
 
+        /* A️⃣ ATTENDANCE (TOP PRIORITY) */
+        if (attendanceMap[key]) {
+          rows.push(attendanceMap[key]);
+          cur.setDate(cur.getDate() + 1);
+          continue;
+        }
+        
         /* C️⃣ WEEK-OFF */
         const dayName = cur.toLocaleDateString("en-US", { weekday: "long" });
 

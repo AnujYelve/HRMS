@@ -17,6 +17,45 @@ const getLeaveTypeName = (type) => {
   return typeNames[type] || "Leave";
 };
 
+async function syncAttendanceWithLeave(leave) {
+  const start = new Date(leave.startDate);
+  const end = new Date(leave.endDate);
+
+  let cur = new Date(start);
+  cur.setHours(0, 0, 0, 0);
+
+  while (cur <= end) {
+    const existing = await prisma.attendance.findFirst({
+      where: {
+        userId: leave.userId,
+        date: cur
+      }
+    });
+
+    if (existing) {
+      // ✅ Case 1: Employee already checked-in
+      await prisma.attendance.update({
+        where: { id: existing.id },
+        data: {
+          status: leave.type,        // WFH / HALF_DAY / PAID / etc
+          lateHalfDayEligible: false
+        }
+      });
+    } else {
+      // ✅ Case 2: No check-in → create attendance (OLD BEHAVIOUR)
+      await prisma.attendance.create({
+        data: {
+          userId: leave.userId,
+          date: cur,
+          status: leave.type        // show leave directly
+        }
+      });
+    }
+
+    cur.setDate(cur.getDate() + 1);
+  }
+}
+
 /* --------------------------------------------------------
    CREATE LEAVE — Employees only
 -------------------------------------------------------- */
@@ -530,7 +569,12 @@ isEmployeeDeleted: false,
   },
   include:{ user:true }
     });
-
+    
+    
+    if (finalStatus === "APPROVED") {
+    await syncAttendanceWithLeave(updated);
+  }
+    
     // =====================================================
     // 📩 Email Notification
     // =====================================================
