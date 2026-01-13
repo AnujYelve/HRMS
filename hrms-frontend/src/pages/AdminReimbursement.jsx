@@ -19,10 +19,8 @@ export default function AdminReimbursement() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectId, setRejectId] = useState(null);
 
- const [actionLoadingId, setActionLoadingId] = useState(null);   // approve
- const [rejectLoadingId, setRejectLoadingId] = useState(null);   // 🔥 new for reject
-
- const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+ const [actionLoadingId, setActionLoadingId] = useState(null);   
+ const [rejectLoadingId, setRejectLoadingId] = useState(null);  
 
   const loadAll = async () => {
     try {
@@ -186,9 +184,7 @@ const submitReject = async (reason)=>{
                 <div className="mt-3 space-y-1">
 
 {Array.isArray(r.bills) && r.bills.map((b, index) => {
-  const url = b.fileUrl.startsWith("http")
-    ? b.fileUrl
-    : `${BASE_URL}/${b.fileUrl}`;
+  const url = b.fileUrl;
 
   return (
     <button

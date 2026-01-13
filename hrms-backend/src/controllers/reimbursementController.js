@@ -10,6 +10,13 @@ import ExcelJS from "exceljs";
 /* =====================================================
    📦 STORAGE
 ===================================================== */
+// 🔥 FIX OLD + NEW BILL URL (RUNTIME)
+const fixBillUrl = (url) => {
+  if (!url) return url;
+  if (url.startsWith("http")) return url; // new bills
+  return `${process.env.BASE_URL}/${url}`; // old bills
+};
+
 const uploadDir = path.join(process.cwd(), "uploads", "reimbursements");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -51,11 +58,6 @@ const validateManagerReimbursementAccess = async (reimbursementId, managerId) =>
   return record;
 };
 
-const getFullUrl = (file) => {
-  const base = process.env.BASE_URL; // 👈 VERY IMPORTANT
-  return `${base}/${file}`.replace(/([^:]\/)\/+/g, "$1");
-};
-
 const calculateTotal = (bills = []) =>
   bills.reduce((sum, b) => sum + Number(b.amount || 0), 0);
 
@@ -91,7 +93,7 @@ export const uploadReimbursementFiles = async (req, res) => {
         .json({ success: false, message: "No files uploaded" });
 
     const files = req.files.map((f) => ({
-      fileUrl: `uploads/reimbursements/${f.filename}`,
+      fileUrl: `${process.env.BASE_URL}/uploads/reimbursements/${f.filename}`,
     }));
 
     res.json({ success: true, files });
@@ -234,7 +236,15 @@ export const myReimbursements = async (req,res)=>{
     },
     orderBy:{createdAt:"desc"}
   })
-  res.json({success:true,list})
+const fixedList = list.map(r => ({
+  ...r,
+  bills: r.bills.map(b => ({
+    ...b,
+    fileUrl: fixBillUrl(b.fileUrl),
+  })),
+}));
+
+res.json({ success: true, list: fixedList });
 }
 
 /* =====================================================
@@ -282,7 +292,15 @@ export const getManagerReimbursements = async (req, res) => {
       orderBy:{ createdAt:"desc" }
     });
 
-    res.json({ success:true, list:reimbursements });
+  const fixedList = reimbursements.map(r => ({
+  ...r,
+  bills: r.bills.map(b => ({
+    ...b,
+    fileUrl: fixBillUrl(b.fileUrl),
+  })),
+}));
+
+res.json({ success: true, list: fixedList });
   }
   catch(err){ res.status(500).json({success:false}) }
 };
@@ -302,7 +320,15 @@ const list = await prisma.reimbursement.findMany({
   orderBy: { createdAt: "desc" },
 });
 
-    res.json({ success: true, list });
+const fixedList = list.map(r => ({
+  ...r,
+  bills: r.bills.map(b => ({
+    ...b,
+    fileUrl: fixBillUrl(b.fileUrl),
+  })),
+}));
+
+res.json({ success: true, list: fixedList });
   } catch (e) {
     res.status(500).json({ success: false, message: "Failed" });
   }
@@ -521,10 +547,11 @@ export const exportReimbursements = async (req, res) => {
 
     const BASE_URL = process.env.BASE_URL; // LIVE DOMAIN
 
-    const formatUrl = (url) => {
-      if (!url) return "";
-      return url.replace("http://localhost:4000", BASE_URL);
-    };
+const formatUrl = (url) => {
+  if (!url) return "";
+  if (url.startsWith("http")) return url;
+  return `${BASE_URL}/${url}`;
+};
 
     const where = { isAdminDeleted: false };
 
