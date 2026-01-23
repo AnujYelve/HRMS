@@ -221,7 +221,7 @@ setLateHalfDays(pending);
 }
 // 4️⃣ Attendance Correction Requests
 try {
-  const r = await api.get("/attendance-corrections");
+  const r = await api.get("/attendance-corrections/all");
   setAttendanceCorrections(r.data.data || []);
 } catch (e) {
   console.error("Failed to load attendance corrections");
@@ -398,7 +398,7 @@ const submitReject = async (reason) => {
 {attendanceCorrections.length > 0 && (
   <GlassCard>
     <h3 className="text-xl font-semibold mb-4">
-      Attendance Correction Requests
+    Request For Back Date Present If Absent By Some Reason
     </h3>
 
     <div className="space-y-4">
@@ -431,7 +431,7 @@ const submitReject = async (reason) => {
   onClick={() => decideAttendanceCorrection(c.id, "APPROVE")}
   className="px-3 py-1 bg-green-600 text-white rounded"
 >
-  Approve
+  For Present
 </button>
 
     <button
@@ -441,7 +441,7 @@ const submitReject = async (reason) => {
       }}
       className="px-3 py-1 bg-red-600 text-white rounded"
     >
-      Reject
+      Reject (Remain Absent)
     </button>
             </div>
           )}

@@ -970,7 +970,7 @@ return (
     onClose={() => setCorrectionOpen(false)}
 onSuccess={async (reason) => {
   try {
-    await api.post("/attendance-corrections", {
+    await api.post("/attendance-corrections/request", {
       date: correctionDate,
       reason,
     });
