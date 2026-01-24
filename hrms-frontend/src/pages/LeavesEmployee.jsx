@@ -257,12 +257,12 @@ const appliedHalfDay = leaves.filter(
     new Date(l.endDate) <= new Date(yearEnd)
 ).length;
 
-// ⭐ NEW - Late Check-in Half Day (approved by admin from attendance)
+// ⭐ NEW - Late Check-in (0.5 count deduction from the remaining leave Balance) Half Day (approved by admin from attendance)
 const lateHalfDay = leaves.filter(
   (l) =>
     l.type === "HALF_DAY" &&
     l.status === "APPROVED" &&
-    l.reason === "Late check-in" && // 🔥 identify by reason
+    l.reason === "Late Check-in (0.5 count deduction from the remaining leave Balance)" && // 🔥 identify by reason
     new Date(l.startDate) >= new Date(yearStart) &&
     new Date(l.endDate) <= new Date(yearEnd)
 ).length;
@@ -272,6 +272,7 @@ const lateHalfDay = leaves.filter(
     (l) =>
       l.type?.toUpperCase() === "HALF_DAY" &&
       l.status === "APPROVED" &&
+      l.reason !== "Late Check-in (0.5 count deduction from the remaining leave Balance)" &&  // ✅ EXCLUDE Late Check-in (0.5 count deduction from the remaining leave Balance)
       new Date(l.startDate) >= new Date(yearStart) &&
       new Date(l.endDate) <= new Date(yearEnd)
   ).length;
@@ -576,8 +577,8 @@ const updateStatus = async (id, status) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <StatCard icon={<FiClock className="text-green-500" />} title="Approved Leave Days"  value={approvedLeaveDays} />
           <StatCard icon={<FiClock className="text-blue-500" />} title="Approved WFH Days" value={approvedWFHDays}/>
-          <StatCard icon={<FiClock className="text-green-500" />} title="Half Day Approved (Leave + Late Check-in)" value={approvedHalfDay} />
-          <StatCard icon={<FiClock className="text-orange-500" />} title="Late Check-in Half Day Count" value={lateHalfDay} />
+          <StatCard icon={<FiClock className="text-green-500" />} title="Half Day Leave Approved" value={approvedHalfDay} />
+          <StatCard icon={<FiClock className="text-orange-500" />} title="Half Day Count by Late Check-in (0.5 count deduction from the remaining leave Balance)" value={lateHalfDay} />
           <StatCard icon={<FiClock className="text-teal-500" />} title="Comp-Off Balance" value={user?.compOffBalance ?? 0}/>
           <StatCard icon={<FiCalendar className="text-green-600" />} title="Available Leave Balance"  value={user?.leaveBalance ?? 0}/>
           <StatCard icon={<FiCalendar className="text-red-500" />} title="Remaining Leaves" value={`${remainingLeaves} / ${yearlyQuota}`}/>

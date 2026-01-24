@@ -256,7 +256,7 @@ try {
 
   return () => {
     document.removeEventListener("visibilitychange", handleVisibilityChange);
-    clearInterval(interval);
+    // clearInterval(interval);
   };
 }, []);
 
