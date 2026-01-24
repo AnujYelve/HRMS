@@ -308,41 +308,42 @@ if (!user.isActive) {
 
     const mergedAttendance = [...rawAttendance];
 
-    allLeaves
-      .filter((l) => l.status === "APPROVED")
-      .forEach((l) => {
-        let cur = new Date(l.startDate);
-        const end = new Date(l.endDate);
+// 🔥 APPROVED LEAVES → ATTENDANCE MERGE
+allLeaves
+  .filter(
+    (l) =>
+      l.status === "APPROVED" &&
+      new Date(l.startDate) <= yearEnd &&
+      new Date(l.endDate) >= yearStart
+  )
+  .forEach((l) => {
+    let cur = new Date(l.startDate);
+    const end = new Date(l.endDate);
 
-        const status =
-          l.type === "WFH"
-            ? "WFH"
-            : l.type === "HALF_DAY"
-            ? "HALF_DAY"
-            : "LEAVE";
+let status = "LEAVE";
 
-        while (cur <= end) {
-          const iso = cur.toISOString().slice(0, 10);
+if (l.type === "WFH") status = "WFH";
+else if (l.type === "HALF_DAY") status = "HALF_DAY";
+else if (l.type === "COMP_OFF") status = "COMP_OFF";
 
-          const exists = mergedAttendance.some((a) => {
-            const d =
-              typeof a.date === "string"
-                ? a.date.slice(0, 10)
-                : a.date.toISOString().slice(0, 10);
-            return d === iso;
-          });
+    while (cur <= end) {
+      const iso = cur.toISOString().slice(0, 10);
 
-          if (!exists) {
-            mergedAttendance.push({
-              date: iso,
-              checkIn: false,
-              status
-            });
-          }
+      const exists = mergedAttendance.some((a) =>
+        a.date.toISOString().slice(0, 10) === iso
+      );
 
-          cur.setDate(cur.getDate() + 1);
-        }
-      });
+      if (!exists) {
+        mergedAttendance.push({
+          date: iso,
+          status,
+          checkIn: null,
+        });
+      }
+
+      cur.setDate(cur.getDate() + 1);
+    }
+  });
 
     mergedAttendance.sort((a, b) => new Date(a.date) - new Date(b.date));
 

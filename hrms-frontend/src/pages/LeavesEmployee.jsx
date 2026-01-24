@@ -241,38 +241,19 @@ const approvedLeaveDays = React.useMemo(() => {
     )
   );
 
-  // // ⭐ Total half day applied (count)
-  // const totalAppliedHalfDay = leaves.filter(
-  //   (l) =>
-  //     l.type === "HALF_DAY" &&
-  //     new Date(l.startDate) >= new Date(yearStart) &&
-  //     new Date(l.endDate) <= new Date(yearEnd)
-  // ).length;
-  // ⭐ Half Day Leave (applied by employee)
-const appliedHalfDay = leaves.filter(
-  (l) =>
-    l.type === "HALF_DAY" &&
-    l.status === "APPROVED" &&
-    new Date(l.startDate) >= new Date(yearStart) &&
-    new Date(l.endDate) <= new Date(yearEnd)
-).length;
-
-// ⭐ NEW - Late Check-in (0.5 count deduction from the remaining leave Balance) Half Day (approved by admin from attendance)
-const lateHalfDay = leaves.filter(
-  (l) =>
-    l.type === "HALF_DAY" &&
-    l.status === "APPROVED" &&
-    l.reason === "Late Check-in (0.5 count deduction from the remaining leave Balance)" && // 🔥 identify by reason
-    new Date(l.startDate) >= new Date(yearStart) &&
-    new Date(l.endDate) <= new Date(yearEnd)
-).length;
+  // ⭐ Total half day applied (count)
+  const totalAppliedHalfDay = leaves.filter(
+    (l) =>
+      l.type === "HALF_DAY" &&
+      new Date(l.startDate) >= new Date(yearStart) &&
+      new Date(l.endDate) <= new Date(yearEnd)
+  ).length;
 
   // ⭐ Approved half day (count)
   const approvedHalfDay = leaves.filter(
     (l) =>
       l.type?.toUpperCase() === "HALF_DAY" &&
       l.status === "APPROVED" &&
-      l.reason !== "Late Check-in (0.5 count deduction from the remaining leave Balance)" &&  // ✅ EXCLUDE Late Check-in (0.5 count deduction from the remaining leave Balance)
       new Date(l.startDate) >= new Date(yearStart) &&
       new Date(l.endDate) <= new Date(yearEnd)
   ).length;
@@ -577,8 +558,7 @@ const updateStatus = async (id, status) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <StatCard icon={<FiClock className="text-green-500" />} title="Approved Leave Days"  value={approvedLeaveDays} />
           <StatCard icon={<FiClock className="text-blue-500" />} title="Approved WFH Days" value={approvedWFHDays}/>
-          <StatCard icon={<FiClock className="text-green-500" />} title="Half Day Leave Approved" value={approvedHalfDay} />
-          <StatCard icon={<FiClock className="text-orange-500" />} title="Half Day Count by Late Check-in (0.5 count deduction from the remaining leave Balance)" value={lateHalfDay} />
+          <StatCard icon={<FiClock className="text-green-500" />} title="Half Day Approved" value={approvedHalfDay} />
           <StatCard icon={<FiClock className="text-teal-500" />} title="Comp-Off Balance" value={user?.compOffBalance ?? 0}/>
           <StatCard icon={<FiCalendar className="text-green-600" />} title="Available Leave Balance"  value={user?.leaveBalance ?? 0}/>
           <StatCard icon={<FiCalendar className="text-red-500" />} title="Remaining Leaves" value={`${remainingLeaves} / ${yearlyQuota}`}/>

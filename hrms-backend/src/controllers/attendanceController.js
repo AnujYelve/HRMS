@@ -783,7 +783,7 @@ if (alreadyLeave) {
           status: "APPROVED",
           startDate: attendance.date,
           endDate: attendance.date,
-          reason: "Late Check-in (0.5 count deduction from the remaining leave Balance)"
+          reason: "Late Check-in"
         }
       });
 
