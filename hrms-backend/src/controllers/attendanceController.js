@@ -99,7 +99,6 @@ if (!user) return; // 🚫 silently ignore
    CHECK-IN (Holiday + WeekOff BLOCK)
 ======================================================= */
 export const checkIn = async (req, res) => {
-  console.log("👉 CHECK-IN API HIT by:", req.user?.email);
   try {
     const user = req.user;
     const activeUser = await prisma.user.findFirst({
