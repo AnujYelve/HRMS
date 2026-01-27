@@ -99,6 +99,7 @@ if (!user) return; // 🚫 silently ignore
    CHECK-IN (Holiday + WeekOff BLOCK)
 ======================================================= */
 export const checkIn = async (req, res) => {
+  console.log("👉 CHECK-IN API HIT by:", req.user?.email);
   try {
     const user = req.user;
     const activeUser = await prisma.user.findFirst({
@@ -177,15 +178,17 @@ if (leaveToday && !["WFH", "HALF_DAY"].includes(leaveToday.type)) {
       isWeekOff = isFixedOff || isRosterOff;
     }
 
-    /* =====================================================
-       4️⃣ DUPLICATE CHECK
-    ===================================================== */
+/* =====================================================
+   4️⃣ DUPLICATE CHECK (TODAY ONLY)
+===================================================== */
 const existing = await prisma.attendance.findFirst({
   where: {
     userId: user.id,
-    checkOut: null   // 🔥 key fix
-  },
-  orderBy: { checkIn: "desc" }
+    date: {
+      gte: new Date(todayISO + "T00:00:00"),
+      lte: new Date(todayISO + "T23:59:59.999")
+    }
+  }
 });
 
     if (existing?.checkIn) {
@@ -206,7 +209,7 @@ const istNow = new Date(
   today.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
 );
 const halfDayCutoff = new Date(istNow);
-halfDayCutoff.setHours(12, 0, 0, 0);
+halfDayCutoff.setHours(11, 30, 0, 0);
 
 if (isWeekOff) {
   status = "WEEKOFF_PRESENT";
