@@ -26,39 +26,54 @@ export default function Login() {
     document.documentElement.classList.toggle("dark", darkMode);
     localStorage.setItem("theme", darkMode ? "dark" : "light");
   }, [darkMode]);
+//  NEW useEffect
+useEffect(() => {
+  // Clear any stale authentication data on login page load
+  localStorage.removeItem("hrms_access");
+  localStorage.removeItem("hrms_refresh");
+  delete api.defaults.headers.common["Authorization"];
+}, []);
 
   const toggleTheme = () => setDarkMode((prev) => !prev);
 
   // ============================
   // LOGIN SUBMIT — UPDATED
   // ============================
-const submit = async (e) => {
-  e.preventDefault();
-  setErrMsg("");
-  setLoading(true);
-
-  try {
-    const res = await api.post("/auth/login", { email, password, loginType });
-    const { accessToken, user } = res.data;
-
-    localStorage.setItem("hrms_access", accessToken);
-    api.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
-
-    // ✅ FULL USER SHOULD COME FROM LOGIN
-    setAuth(user, accessToken);
-
-    if (user.role === "ADMIN") {
-      navigate("/dashboard");
-    } else {
-      navigate("/attendance");
+  const submit = async (e) => {
+    e.preventDefault();
+    setErrMsg("");
+    setLoading(true);
+  
+    // Read values from DOM directly (fixes autofill/fingerprint issue)
+    const form = e.target;
+    const emailValue = form.email?.value?.trim() || email;
+    const passwordValue = form.password?.value || password;
+  
+    try {
+      const res = await api.post("/auth/login", { 
+        email: emailValue, 
+        password: passwordValue, 
+        loginType 
+      });
+      const { accessToken, user } = res.data;
+  
+      localStorage.setItem("hrms_access", accessToken);
+      api.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
+  
+      setAuth(user, accessToken);
+  
+      if (user.role === "ADMIN") {
+        navigate("/dashboard");
+      } else {
+        navigate("/attendance");
+      }
+  
+    } catch (err) {
+      setErrMsg(err.response?.data?.message || "Invalid credentials");
+    } finally {
+      setLoading(false);
     }
-
-  } catch (err) {
-    setErrMsg(err.response?.data?.message || "Invalid credentials");
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center relative px-6 overflow-hidden
@@ -223,30 +238,32 @@ const submit = async (e) => {
 
             {/* EMAIL */}
             <input
-              required
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com"
-              className="w-full px-4 py-3 rounded-xl border bg-white/90 dark:bg-gray-900/70 
-              text-gray-800 dark:text-gray-100 placeholder-gray-400  
-              border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-indigo-400 transition"
-            />
+  name="email"              // 👈 ADD THIS
+  required
+  type="email"
+  autoComplete="email"
+  value={email}
+  onChange={(e) => setEmail(e.target.value)}
+  placeholder="you@company.com"
+  className="w-full px-4 py-3 rounded-xl border bg-white/90 dark:bg-gray-900/70 
+  text-gray-800 dark:text-gray-100 placeholder-gray-400  
+  border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-indigo-400 transition"
+/>
 
             {/* PASSWORD */}
             <div className="relative">
-              <input
-                required
-                type={showPassword ? "text" : "password"}
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-4 py-3 rounded-xl border bg-white/90 dark:bg-gray-900/70 
-                text-gray-800 dark:text-gray-100 placeholder-gray-400 
-                border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-indigo-400 transition"
-              />
+<input
+  name="password"           // 👈 ADD THIS
+  required
+  type={showPassword ? "text" : "password"}
+  autoComplete="current-password"
+  value={password}
+  onChange={(e) => setPassword(e.target.value)}
+  placeholder="••••••••"
+  className="w-full px-4 py-3 rounded-xl border bg-white/90 dark:bg-gray-900/70 
+  text-gray-800 dark:text-gray-100 placeholder-gray-400 
+  border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-indigo-400 transition"
+/>
 
               <button
                 type="button"
