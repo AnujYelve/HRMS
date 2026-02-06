@@ -6,6 +6,7 @@ import { SocketProvider } from './contexts/SocketContext';
 import './index.css';
 import ErrorBoundary from './components/ErrorBoundary';
 
+
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter
