@@ -349,6 +349,10 @@ model FreelanceFacultyManager {
 model FreelanceFaculty {
   id                  String   @id @default(uuid())
   managerId           String // FK to User.id (the manager employee)
+  //new adddition
+  email               String?    @unique
+  phone               String?
+  joiningDate         DateTime  @default(now())
   name                String
   subjects            String[] // Array of subject names
   preferredDaysOfWeek String[] // Array like ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
@@ -358,34 +362,95 @@ model FreelanceFaculty {
   freelanceFacultyManagerId String
 
   manager                   User                       @relation("FreelanceFacultyManager", fields: [managerId], references: [id])
-  dayEntries                FreelanceFacultyDayEntry[]
+  dayEntries                DayEntry[]
   freelanceFacultyManager   FreelanceFacultyManager   @relation("FFM_Faculties",fields: [freelanceFacultyManagerId], references: [id])
 
   @@index([managerId])
   @@map("freelance_faculties")
 }
 
-/// *
-///  * ===================== FREELANCE FACULTY DAY ENTRY =====================
-model FreelanceFacultyDayEntry {
-  id           String   @id @default(uuid())
-  facultyId    String // FK to FreelanceFaculty.id
-  date         DateTime @db.Date // Date only (no time)
-  classesCount Int      @default(0) // Number of classes (each = 1.5 hours)
-  subjects     String[] // Array of subjects taught that day
-  batch        String // Batch name/identifier
-  topic        String // Topic taught
-  totalHours   Float // Computed: classesCount * 1.5 (store for querying)
-  // createdBy    String // FK to User.id (the manager who logged this)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+// Batch Model
+model Batch {
+  id          String            @id @default(cuid())
+  name        String
+  code        String?            @unique
+  description String?
+  startDate   DateTime
+  endDate     DateTime?
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  
+  // Relations
+  // assignments BatchAssignment[]
+  classes     Class[]
+  
+  @@map("batches")
+}
 
-  faculty FreelanceFaculty @relation(fields: [facultyId], references: [id])
-  // creator User             @relation("FreelanceFacultyDayEntryCreator", fields: [createdBy], references: [id])
+// Subject Model
+model Subject {
+  id          String            @id @default(cuid())
+  name        String
+  code        String            @unique
+  description String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  
+  // Relations
+  classes     Class[]
+  // assignments BatchAssignment[]
+  
+  @@map("subjects")
+}
 
-  @@unique([facultyId, date]) // One entry per faculty per day
+
+// Day Entry Model (Main tracking table for each faculty per day)
+model DayEntry {
+  id              String    @id @default(cuid())
+  facultyId       String
+  date            DateTime  @db.Date
+  isPresent       Boolean   @default(true)
+  remarks         String?
+  totalClasses    Int       @default(0) // Computed field for quick access
+  totalDuration   Int       @default(0) // Total minutes, computed
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?   // Manager who created the entry
+  
+  // Relations
+  faculty         FreelanceFaculty   @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  classes         Class[]
+  
+  @@unique([facultyId, date])
   @@index([facultyId, date])
+  @@index([date])
   @@map("freelance_faculty_day_entries")
+}
+
+// Class Model (Individual class session)
+model Class {
+  id          String    @id @default(cuid())
+  dayEntryId  String
+  batchId     String
+  subjectId   String
+  topic       String
+  startTime   DateTime  @db.Time
+  endTime     DateTime  @db.Time
+  duration    Int       // Duration in minutes
+  notes       String?   // Additional notes about the class
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  dayEntry    DayEntry  @relation(fields: [dayEntryId], references: [id], onDelete: Cascade)
+  batch       Batch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  subject     Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  
+  @@index([dayEntryId])
+  @@index([batchId])
+  @@index([subjectId])
+  @@map("classes")
 }
 
 /// *

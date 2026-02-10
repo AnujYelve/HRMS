@@ -70,6 +70,7 @@ const FreelanceManagerDashboard = () => {
     (sum, f) => sum + (f.totalHours || 0),
     0
   );
+  const formattedTotalHours = totalHours.toFixed(1);
 
   return (
     <div className="space-y-6">
@@ -82,50 +83,49 @@ const FreelanceManagerDashboard = () => {
         </p>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <div className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-            Faculties
-          </div>
-          <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
-            {faculties.length}
-          </div>
-        </div>
-        <div className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-            Total Entries
-          </div>
-          <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
-            {totalEntries}
-          </div>
-        </div>
-        <div className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-            Total Classes
-          </div>
-          <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
-            {totalClasses}
-          </div>
-        </div>
-        <div className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-            Total Hours
-          </div>
-          <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
-            {totalHours}
-          </div>
-        </div>
-      </div>
-
       {/* Loading state */}
-      {loadingFaculties && (
-        <div className="rounded-2xl border bg-white px-6 py-8 text-center text-sm text-gray-600 shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
-          <div className="flex items-center justify-center gap-2">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-indigo-600" />
-            <span>Loading faculties...</span>
-          </div>
+      {loadingFaculties ? (
+        <div className="flex min-h-[400px] items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-indigo-600 dark:border-gray-700 dark:border-t-indigo-500" />
         </div>
+      ) : (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            <div className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                Faculties
+              </div>
+              <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {faculties.length}
+              </div>
+            </div>
+            <div className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                Total Entries
+              </div>
+              <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {totalEntries}
+              </div>
+            </div>
+            <div className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                Total Classes
+              </div>
+              <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {totalClasses}
+              </div>
+            </div>
+            <div className="rounded-2xl border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                Total Hours
+              </div>
+              <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {formattedTotalHours}
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Error state */}
@@ -136,7 +136,7 @@ const FreelanceManagerDashboard = () => {
       )}
 
       {/* Empty / table state */}
-      {!loadingFaculties && !error && (
+      {!loadingFaculties && (
         <div className="overflow-hidden rounded-2xl border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
           {faculties.length === 0 ? (
             <div className="px-6 py-10 text-center text-sm text-gray-600 dark:text-gray-400">
@@ -232,7 +232,7 @@ const FreelanceManagerDashboard = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="font-semibold text-gray-900 dark:text-gray-100">
-                          {faculty.totalHours || 0}
+                          {Number(faculty.totalHours || 0).toFixed(1)}
                         </div>
                       </td>
                     </tr>

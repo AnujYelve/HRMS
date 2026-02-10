@@ -50,6 +50,9 @@ export default function FreelanceFacultyManagerView() {
   // Assign freelance faculty modal state
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignName, setAssignName] = useState("");
+  const [assignEmail, setAssignEmail] = useState("");
+  const [assignPhone, setAssignPhone] = useState("");
+  const [assignJoiningDate, setAssignJoiningDate] = useState("");
   const [assignSubjects, setAssignSubjects] = useState([]);
   const [assignDays, setAssignDays] = useState([]);
   const [assignLoading, setAssignLoading] = useState(false);
@@ -171,9 +174,13 @@ export default function FreelanceFacultyManagerView() {
   const totalEntries = faculties.reduce((sum, f) => sum + (f.totalEntries || 0), 0);
   const totalClasses = faculties.reduce((sum, f) => sum + (f.totalClasses || 0), 0);
   const totalHours = faculties.reduce((sum, f) => sum + (f.totalHours || 0), 0);
+  const formattedTotalHours = totalHours.toFixed(1);
 
   const openAssignModal = () => {
     setAssignName("");
+    setAssignEmail("");
+    setAssignPhone("");
+    setAssignJoiningDate("");
     setAssignSubjects([]);
     setAssignDays([]);
     setAssignError(null);
@@ -228,7 +235,10 @@ export default function FreelanceFacultyManagerView() {
 
     const payload = {
       managerId,
-      name: assignName,
+      name: assignName.trim(),
+      email: assignEmail.trim() || undefined,
+      phone: assignPhone.trim() || undefined,
+      joiningDate: assignJoiningDate || undefined,
       subjects: assignSubjects,
       preferredDaysOfWeek: assignDays,
     };
@@ -342,7 +352,7 @@ export default function FreelanceFacultyManagerView() {
               Total Hours
             </div>
             <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {totalHours}
+              {formattedTotalHours}
             </div>
           </div>
         </div>
@@ -364,6 +374,47 @@ export default function FreelanceFacultyManagerView() {
                   value={assignName}
                   onChange={(e) => setAssignName(e.target.value)}
                   placeholder="Enter faculty name"
+                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-indigo-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={assignEmail}
+                  onChange={(e) => setAssignEmail(e.target.value)}
+                  placeholder="e.g. faculty@example.com"
+                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-indigo-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Phone
+                </label>
+                <input
+                  type="tel"
+                  value={assignPhone}
+                  onChange={(e) => setAssignPhone(e.target.value)}
+                  placeholder="e.g. 9876543210"
+                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-indigo-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Joining Date
+                </label>
+                <input
+                  type="date"
+                  value={assignJoiningDate}
+                  onChange={(e) => setAssignJoiningDate(e.target.value)}
                   className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-indigo-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
                   required
                 />
@@ -716,7 +767,7 @@ export default function FreelanceFacultyManagerView() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="font-semibold text-gray-900 dark:text-gray-100">
-                          {faculty.totalHours || 0}
+                          {Number(faculty.totalHours || 0).toFixed(1)}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">

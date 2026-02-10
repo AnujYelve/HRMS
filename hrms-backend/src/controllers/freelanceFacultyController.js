@@ -1,502 +1,702 @@
-import prisma from "../prismaClient.js"
+import prisma from "../prismaClient.js";
 
-const VALID_DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
-
-// ===================== create an employee a freelance faculty manager================
-// =============ADMIN ONLY==================================
-export const createFreelanceFacultyManager=async (req,res)=>{
-    try{
-        const { employeeId } = req.body;
-        console.log(employeeId);
-        if (!employeeId) {
-          return res.status(400).json({
-            success: false,
-            message: "Employee ID is required"
-          });
-        }
-    
-        // Check if employee exists and is active
-        const employee = await prisma.user.findUnique({
-          where: { id: employeeId }
-        });
-    
-        if (!employee) {
-          return res.status(404).json({
-            success: false,
-            message: "Employee not found"
-          });
-        }
-
-        if (!employee.isActive) {
-            return res.status(400).json({
-              success: false,
-              message: "Employee account is inactive"
-            });
-          }
-      
-          //  Does FreelanceFacultyManager record already exist?
-          const existingManager = await prisma.freelanceFacultyManager.findUnique({
-            where: { employeeId }
-          });
-      
-          if (existingManager) {
-            return res.status(400).json({
-              success: false,
-              message: "Employee is already a freelance faculty manager"
-            });
-          }
-
-          
-    //  Just create FreelanceFacultyManager record (NO role change)
-    const managerRecord = await prisma.freelanceFacultyManager.create({
-        data: { employeeId },
-        include: {
-          employee: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              role: true
-            }
-          },
-          faculties: {
-            select: { id: true }
-          }
-        }
-      });
-
-      return res.status(201).json({
-        success: true,
-        message: "Freelance faculty manager created successfully",
-        manager: {
-          id: managerRecord.employee.id,
-          firstName: managerRecord.employee.firstName,
-          lastName: managerRecord.employee.lastName,
-          email: managerRecord.employee.email,
-          role: managerRecord.employee.role, // Still AGILITY_EMPLOYEE or LYF_EMPLOYEE
-          isFreelanceFacultyManager: true,
-          facultiesCount: managerRecord.faculties.length
-        }
-      });
-
-    }catch(error){
-        console.log("Something went wrong while creating faculty manager:",error);
-        return res.status(500).json({
-          success:false,
-          message:"Something went wrong while creating faculty manager!"
-        })
-    }
+// ---------- Helper: get manager record for current user (manager-only routes) ----------
+async function getManagerRecord(userId) {
+  const record = await prisma.freelanceFacultyManager.findUnique({
+    where: { employeeId: userId },
+  });
+  return record;
 }
 
-// ========get list of faculty managers======================
-// =============ADMIN ONLY==================================
+// ---------- GET /faculty/:facultyId/stats ----------
+export const getFacultyStats = async (req, res) => {
+  try {
+    const { facultyId } = req.params;
+    const userId = req.user?.id;
+    const isAdmin = req.user?.role === "ADMIN";
 
-export const listFacultyManagers=async (req,res)=>{
-  try{
-    const managerRecords=await prisma.freelanceFacultyManager.findMany({
-      include:{
-        employee:{
-          select:{
-            id:true,
-            firstName:true,
-            lastName:true,
-            email:true,
-            role:true,
-            isActive:true
-          }
-        },
-        faculties:{
-          select:{
-            id:true  //select id's of the faculties under this manager
-          }
-        }
-      },
-      orderBy:{
-        createdAt:"desc"
-      }
-    });
-
-    // formatting response
-    const managers=managerRecords.map((record)=>({
-      id:record.employee.id,
-      firstName:record.employee.firstName,
-      lastName:record.employee.lastName,
-      email:record.employee.email,
-      role:record.employee.role,
-      status:(record.employee.isActive ? "ACTIVE":"INACTIVE"),
-      isFreelanceFacultyManager:true,
-      facultiesCount:record.faculties.length
-    }))
-
-    return res.status(200).json({
-      success:true,
-      managers
-    })
-
-  }catch(err){
-    console.log("something went wrong while fetching freelance faculty managers list:",err);
-    return res.status(500).json({
-      success:false,
-      message:"Failed to load freelance faculty managers!"
-    })
-  }
-}
-
-//=====================assign freelance faculty to a faculty manager===================
-// =================ADMIN ONLY======================
-
-export const assignFreelanceFaculty=async (req,res)=>{
-  try{
-      const {managerId,name,subjects,preferredDaysOfWeek}=req.body;
-
-      // Validation: Required fields
-    if (!managerId || !name || !subjects || !preferredDaysOfWeek) {
-      return res.status(400).json({
-        success: false,
-        message: "Manager ID, name, subjects, and preferred days are required"
-      });
-    }
-
-    const trimmedName = name.trim();
-    if (trimmedName.length < 2) {
-      return res.status(400).json({
-        success: false,
-        message: "Faculty name must be at least 2 characters"
-      });
-    }
-
-    if (!Array.isArray(subjects) || subjects.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "At least one subject is required"
-      });
-    }
-
-    if (!Array.isArray(preferredDaysOfWeek) || preferredDaysOfWeek.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "At least one preferred day is required"
-      });
-    }
-
-    const invalidDays=preferredDaysOfWeek.filter(day=>!VALID_DAYS.includes(day));
-    
-    if(invalidDays.length > 0){
-      return res.status(400).json({
-        success: false,
-        message: `Invalid days: ${invalidDays.join(", ")}. Valid days are: ${VALID_DAYS.join(", ")}`
-      });
-    }
-
-    //check whether manager have a freelanceFacultyManager record or not
-    const managerRecord=await prisma.freelanceFacultyManager.findUnique({
-      where:{
-        employeeId:managerId
-      },
-      include:{
-        employee:{
-          select:{
-            id:true,
-            firstName:true,
-            lastName:true,
-            email:true,
-            isActive:true
-          }
-        }
-      }
-    })
-
-    if(!managerRecord){
-      return res.status(400).json({
-        success: false,
-        message: "Selected employee is not a freelance faculty manager"
-      });
-    }
-
-    if(!managerRecord.employee.isActive){
-      return res.status(400).json({
-        success: false,
-        message: "Manager account is inactive"
-      });
-    }
-
-    const faculty=await prisma.freelanceFaculty.create({
-      data:{
-        managerId,
-        freelanceFacultyManagerId:managerRecord.id,
-        name:trimmedName,
-        subjects:subjects.map(s=>s.trim()),
-        preferredDaysOfWeek:[...new Set(preferredDaysOfWeek)],
-        status:"ACTIVE"
-      },
-      include:{
-        manager:{
-          select:{
-            id:true,
-            firstName:true,
-            lastName:true,
-            email:true
-          }
-        }
-      }
-    })
-
-    return res.status(201).json({
-      success: true,
-      message: "Freelance faculty created successfully",
-      faculty
-    });
-
-  }catch(err){
-    console.log("something went wrong while assigning the faculty:",err);
-    return res.status(500).json({
-      success:false,
-      message:"Failed to assign freelance faculty!"
-    })
-  }
-}
-
-// =============ADMIN ONLY==================================
-// ==============make freelance faculty inactive==================================
-export const updateFreelanceFacultyStatus=async (req,res)=>{
-  try{
-    const {facultyId,status} = req.body;
-
-    console.log(facultyId,status);
-    if(!facultyId || !status){
-      return res.status(400).json({
-        success:false,
-        message:"FacultyId and status are required."
-      });
-    }
-
-    const allowedStatuses=["ACTIVE","INACTIVE"];
-    if(!allowedStatuses.includes(status)){
-      return res.status(400).json({
-        success:false,
-        message:"Invalid status provided."
-      })
-    }
-
-    const existingFaculty=await prisma.freelanceFaculty.findUnique({
-      where:{id:facultyId}
-    });
-
-    if(!existingFaculty){
-      return res.status(400).json({
-        success:false,
-        message:"Faculty not found!"
-      });
-    }
-
-    const updateFacultyStatus=await prisma.freelanceFaculty.update({
-      where:{id:facultyId},
-      data:{status},
-    })
-
-    return res.status(200).json({
-      success:true,
-      message:"Faculty status updated successfully."
-    })
-  }catch(err){
-    console.log("removeFreelanceFaculty error:",err);
-    return res.status(500).json({
-      message:"Something went wrong while removing faculty!",
-      error:err
-    })
-  }
-}
-
-// =============ADMIN ONLY==================================
-// ================change faculty manager====================================
-export const changeFacultyManager=async (req,res)=>{
-  try{
-    const {facultyId,newManagerId}=req.body;
-
-    if (!facultyId || !newManagerId) {
-      return res.status(400).json({
-        success:false,
-        message:"facultyId and newManagerId are required."
-      });
-    }
-
-    const existingFaculty=await prisma.freelanceFaculty.findUnique({
-      where:{id:facultyId},
-      select:{
-        id:true,
-        managerId:true,
-        freelanceFacultyManagerId:true,
-      }      
-    })
-
-    if(!existingFaculty){
-      return res.status(404).json({
-        success:false,
-        message:"No faculty found with this ID."
-      })
-    }
-
-    if(existingFaculty.managerId === newManagerId){
-      return res.status(400).json({
-        success:false,
-        message:"New managerId is same as current managerId."
-      })
-    }
-
-    // New manager must have a FreelanceFacultyManager record
-    const newManagerRecord = await prisma.freelanceFacultyManager.findUnique({
-      where: {
-        employeeId: newManagerId
-      },
+    const faculty = await prisma.freelanceFaculty.findUnique({
+      where: { id: facultyId },
       include: {
-        employee: {
-          select: {
-            isActive: true
-          }
-        }
-      }
-    });
-
-    if (!newManagerRecord) {
-      return res.status(400).json({
-        success:false,
-        message:"Selected employee is not a freelance faculty manager."
-      });
-    }
-
-    if (!newManagerRecord.employee.isActive) {
-      return res.status(400).json({
-        success:false,
-        message:"New manager account is inactive."
-      });
-    }
-
-    const updatedFaculty=await prisma.freelanceFaculty.update({
-      where:{id:facultyId},
-      data:{
-        managerId:newManagerId,
-        // keep relation in sync with the manager's FreelanceFacultyManager record
-        freelanceFacultyManagerId:newManagerRecord.id
-      }
-    })
-
-    return res.status(200).json({
-      success:true,
-      data:updatedFaculty,
-      message:"Manager changed successfully."
-    })
-
-  }catch(err){
-    console.log(err);
-    return res.status(500).json({
-      success:false,
-      message:"Something went wrong while switching manager. Please try again later!"
-    })
-  }
-}
-
-
-
-// ===================================MANAGER ONLY ENDPOINTS ================================
-export const checkFreelanceFacultyManager=async (req,res)=>{
-  try{
-    const userId=req.user.id;
-
-    const record = await prisma.freelanceFacultyManager.findUnique({
-      where: { employeeId:userId },
-    });
-
-    const isFreelanceFacultyManager = !!record;
-
-    return res.json({ isFreelanceFacultyManager });
-  }catch(err){
-    console.log(err);
-    return res.status(500).json({
-      message:err?.message ?? "Something went wrong while checking user a manager or not!"
-    })
-  }
-}
-
-// ============list freelance faculties under a manager=========================
-export const listFreelanceFaculties=async (req,res)=>{
-  try{
-    const {managerId}=req.body;
-
-    if(!managerId){
-      return res.status(400).json({
-        message:"Manager ID is required"
-      })
-    }
-
-    const faculties=await prisma.freelanceFaculty.findMany({
-      where:{managerId:managerId},
-      include:{
-        manager:{
-          select:{
-            id:true,
-            firstName:true,
-            lastName:true,
-            email:true
-          }
+        dayEntries: {
+          include: { classes: true },
         },
-        dayEntries:{
-          select:{
-            id:true,
-            date:true,
-            classesCount:true,
-            totalHours:true
-          },
-          orderBy:{
-            date:"desc"
-          },
-          take:10
-        },
-        _count:{
-          select:{
-            dayEntries:true
-          }
-        }
+        _count: { select: { dayEntries: true } },
       },
-      orderBy:{
-        createdAt:"desc"
-      }
     });
 
+    if (!faculty) {
+      return res.status(404).json({ success: false, message: "Faculty not found" });
+    }
 
+    if (!isAdmin) {
+      const manager = await getManagerRecord(userId);
+      if (!manager || faculty.managerId !== userId) {
+        return res.status(403).json({ success: false, message: "Not allowed" });
+      }
+    }
 
-    const facultyStats=faculties.map((faculty)=>{
-      const totalClasses=faculty.dayEntries.reduce((sum,entry)=>sum+entry.classesCount,0) || 0;
-      const totalHours=faculty.dayEntries.reduce((sum,entry)=>sum+entry.totalHours,0) || 0;
+    const totalClasses = faculty.dayEntries.reduce((s, e) => s + (e.totalClasses ?? 0), 0);
+    const totalDuration = faculty.dayEntries.reduce((s, e) => s + (e.totalDuration ?? 0), 0);
+    const presentDays = faculty.dayEntries.filter((e) => e.isPresent).length;
+    const absentDays = faculty.dayEntries.length - presentDays;
 
-      return{
-        id:faculty.id,
-        name:faculty.name,
-        subjects: faculty.subjects,
-        preferredDaysOfWeek: faculty.preferredDaysOfWeek,
-        status: faculty.status,
-        manager: faculty.manager,
-        totalEntries: faculty._count.dayEntries,
+    return res.json({
+      success: true,
+      stats: {
+        facultyId: faculty.id,
+        name: faculty.name,
+        totalDayEntries: faculty._count.dayEntries,
         totalClasses,
-        totalHours,
-        createdAt: faculty.createdAt,
-        updatedAt: faculty.updatedAt
+        totalDurationMinutes: totalDuration,
+        presentDays,
+        absentDays,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to get faculty stats" });
+  }
+};
+
+// ---------- GET /manager/faculties/stats ----------
+export const getManagerFacultiesStats = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const manager = await getManagerRecord(userId);
+    if (!manager) {
+      return res.status(403).json({ success: false, message: "Not a freelance faculty manager" });
+    }
+
+    const faculties = await prisma.freelanceFaculty.findMany({
+      where: { managerId: userId },
+      include: {
+        _count: { select: { dayEntries: true } },
+        dayEntries: {
+          select: { totalClasses: true, totalDuration: true, isPresent: true },
+        },
+      },
+    });
+
+    const stats = faculties.map((f) => {
+      const totalClasses = f.dayEntries.reduce((s, e) => s + (e.totalClasses ?? 0), 0);
+      const totalDuration = f.dayEntries.reduce((s, e) => s + (e.totalDuration ?? 0), 0);
+      const presentDays = f.dayEntries.filter((e) => e.isPresent).length;
+      return {
+        facultyId: f.id,
+        name: f.name,
+        status: f.status,
+        totalDayEntries: f._count.dayEntries,
+        totalClasses,
+        totalDurationMinutes: totalDuration,
+        presentDays,
       };
     });
 
-    return res.status(200).json({
-      success:true,
-      faculties:facultyStats
-    })
-  }catch(err){
-    console.log("Something went wrong while fetching all the faculties list:",err);
-    return res.status(500).json({
-      success:false,
-      message:"Failed to load freelance faculties"
-    })
+    return res.json({ success: true, stats });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to get manager faculties stats" });
   }
-}
+};
 
+// ---------- POST /faculty/:facultyId/entry (upsert day entry + attendance) ----------
+export const upsertDayEntry = async (req, res) => {
+  try {
+    const { facultyId } = req.params;
+    const { date, isPresent, remarks } = req.body;
+    const userId = req.user.id;
 
+    if (!date) {
+      return res.status(400).json({ success: false, message: "date is required (YYYY-MM-DD)" });
+    }
 
+    const faculty = await prisma.freelanceFaculty.findUnique({
+      where: { id: facultyId },
+    });
+    if (!faculty) {
+      return res.status(404).json({ success: false, message: "Faculty not found" });
+    }
 
+    const manager = await getManagerRecord(userId);
+    const isAdmin = req.user?.role === "ADMIN";
+    if (!isAdmin && (!manager || faculty.managerId !== userId)) {
+      return res.status(403).json({ success: false, message: "Not allowed to add entry for this faculty" });
+    }
+
+    const dateOnly = new Date(date);
+    dateOnly.setUTCHours(0, 0, 0, 0);
+
+    const entry = await prisma.dayEntry.upsert({
+      where: {
+        facultyId_date: { facultyId, date: dateOnly },
+      },
+      create: {
+        facultyId,
+        date: dateOnly,
+        isPresent: isPresent !== false,
+        remarks: remarks ?? null,
+        createdBy: userId,
+      },
+      update: {
+        isPresent: isPresent !== false,
+        remarks: remarks ?? null,
+      },
+      include: { faculty: { select: { id: true, name: true } }, classes: true },
+    });
+
+    return res.status(200).json({ success: true, entry });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to upsert day entry" });
+  }
+};
+
+// ---------- PATCH /day-entry/:dayEntryId ----------
+export const updateDayEntry = async (req, res) => {
+  try {
+    const { dayEntryId } = req.params;
+    const { isPresent, remarks } = req.body;
+    const userId = req.user.id;
+
+    const dayEntry = await prisma.dayEntry.findUnique({
+      where: { id: dayEntryId },
+      include: { faculty: true },
+    });
+    if (!dayEntry) {
+      return res.status(404).json({ success: false, message: "Day entry not found" });
+    }
+
+    const manager = await getManagerRecord(userId);
+    const isAdmin = req.user?.role === "ADMIN";
+    if (!isAdmin && (!manager || dayEntry.faculty.managerId !== userId)) {
+      return res.status(403).json({ success: false, message: "Not allowed" });
+    }
+
+    const updated = await prisma.dayEntry.update({
+      where: { id: dayEntryId },
+      data: {
+        ...(typeof isPresent === "boolean" && { isPresent }),
+        ...(remarks !== undefined && { remarks }),
+      },
+      include: { faculty: { select: { id: true, name: true } }, classes: true },
+    });
+
+    return res.json({ success: true, entry: updated });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to update day entry" });
+  }
+};
+
+// ---------- GET /faculty/:facultyId/entries?from=...&to=... ----------
+export const getFacultyEntriesInRange = async (req, res) => {
+  try {
+    const { facultyId } = req.params;
+    const { from, to } = req.query;
+    const userId = req.user.id;
+
+    const faculty = await prisma.freelanceFaculty.findUnique({
+      where: { id: facultyId },
+    });
+    if (!faculty) {
+      return res.status(404).json({ success: false, message: "Faculty not found" });
+    }
+
+    const manager = await getManagerRecord(userId);
+    const isAdmin = req.user?.role === "ADMIN";
+    if (!isAdmin && (!manager || faculty.managerId !== userId)) {
+      return res.status(403).json({ success: false, message: "Not allowed" });
+    }
+
+    const where = { facultyId };
+    if (from || to) {
+      where.date = {};
+      if (from) where.date.gte = new Date(from);
+      if (to) where.date.lte = new Date(to);
+    }
+
+    const entries = await prisma.dayEntry.findMany({
+      where,
+      orderBy: { date: "desc" },
+      include: { classes: { include: { batch: true, subject: true } } },
+    });
+
+    return res.json({ success: true, entries });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to get entries" });
+  }
+};
+
+// ---------- GET /day-entries?date=YYYY-MM-DD ----------
+export const getDayEntriesByDate = async (req, res) => {
+  try {
+    const { date } = req.query;
+    const userId = req.user.id;
+
+    if (!date) {
+      return res.status(400).json({ success: false, message: "Query param date is required (YYYY-MM-DD)" });
+    }
+
+    const manager = await getManagerRecord(userId);
+    if (!manager) {
+      return res.status(403).json({ success: false, message: "Not a freelance faculty manager" });
+    }
+
+    const dateOnly = new Date(date);
+    dateOnly.setUTCHours(0, 0, 0, 0);
+
+    const entries = await prisma.dayEntry.findMany({
+      where: {
+        date: dateOnly,
+        faculty: { managerId: userId },
+      },
+      orderBy: { faculty: { name: "asc" } },
+      include: {
+        faculty: { select: { id: true, name: true, subjects: true } },
+        classes: { include: { batch: true, subject: true } },
+      },
+    });
+
+    return res.json({ success: true, entries });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to get day entries" });
+  }
+};
+
+// ---------- GET /day-entry/:dayEntryId ----------
+export const getDayEntryById = async (req, res) => {
+  try {
+    const { dayEntryId } = req.params;
+    const userId = req.user.id;
+
+    const entry = await prisma.dayEntry.findUnique({
+      where: { id: dayEntryId },
+      include: {
+        faculty: true,
+        classes: { include: { batch: true, subject: true } },
+      },
+    });
+    if (!entry) {
+      return res.status(404).json({ success: false, message: "Day entry not found" });
+    }
+
+    const manager = await getManagerRecord(userId);
+    const isAdmin = req.user?.role === "ADMIN";
+    if (!isAdmin && (!manager || entry.faculty.managerId !== userId)) {
+      return res.status(403).json({ success: false, message: "Not allowed" });
+    }
+
+    return res.json({ success: true, entry });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to get day entry" });
+  }
+};
+
+// ---------- POST /day-entry/:dayEntryId/classes ----------
+export const addClassesToDayEntry = async (req, res) => {
+  try {
+    const { dayEntryId } = req.params;
+    const { classes: classesPayload } = req.body;
+    const userId = req.user.id;
+
+    const dayEntry = await prisma.dayEntry.findUnique({
+      where: { id: dayEntryId },
+      include: { faculty: true, classes: true },
+    });
+    if (!dayEntry) {
+      return res.status(404).json({ success: false, message: "Day entry not found" });
+    }
+
+    const manager = await getManagerRecord(userId);
+    const isAdmin = req.user?.role === "ADMIN";
+    if (!isAdmin && (!manager || dayEntry.faculty.managerId !== userId)) {
+      return res.status(403).json({ success: false, message: "Not allowed" });
+    }
+
+    const list = Array.isArray(classesPayload) ? classesPayload : [classesPayload];
+    if (list.length === 0) {
+      return res.status(400).json({ success: false, message: "At least one class is required" });
+    }
+
+    const created = [];
+    let totalDuration = dayEntry.totalDuration;
+    let totalClasses = dayEntry.totalClasses;
+
+    for (const c of list) {
+      const { batchId, subjectId, topic, startTime, endTime, duration, notes } = c;
+      if (!batchId || !subjectId || !topic || startTime == null || endTime == null || duration == null) {
+        return res.status(400).json({ success: false, message: "batchId, subjectId, topic, startTime, endTime, duration required" });
+      }
+      const cls = await prisma.class.create({
+        data: {
+          dayEntryId,
+          batchId,
+          subjectId,
+          topic,
+          startTime: new Date(startTime),
+          endTime: new Date(endTime),
+          duration: Number(duration),
+          notes: notes ?? null,
+        },
+        include: { batch: true, subject: true },
+      });
+      created.push(cls);
+      totalDuration += cls.duration;
+      totalClasses += 1;
+    }
+
+    await prisma.dayEntry.update({
+      where: { id: dayEntryId },
+      data: { totalClasses, totalDuration },
+    });
+
+    return res.status(201).json({ success: true, classes: created });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to add classes" });
+  }
+};
+
+// ---------- PATCH /classes/:classId ----------
+export const updateClass = async (req, res) => {
+  try {
+    const { classId } = req.params;
+    const { topic, startTime, endTime, duration, notes } = req.body;
+    const userId = req.user.id;
+
+    const cls = await prisma.class.findUnique({
+      where: { id: classId },
+      include: { dayEntry: { include: { faculty: true } } },
+    });
+    if (!cls) {
+      return res.status(404).json({ success: false, message: "Class not found" });
+    }
+
+    const manager = await getManagerRecord(userId);
+    const isAdmin = req.user?.role === "ADMIN";
+    if (!isAdmin && (!manager || cls.dayEntry.faculty.managerId !== userId)) {
+      return res.status(403).json({ success: false, message: "Not allowed" });
+    }
+
+    const data = {};
+    if (topic !== undefined) data.topic = topic;
+    if (startTime !== undefined) data.startTime = new Date(startTime);
+    if (endTime !== undefined) data.endTime = new Date(endTime);
+    if (duration !== undefined) data.duration = Number(duration);
+    if (notes !== undefined) data.notes = notes;
+
+    const updated = await prisma.class.update({
+      where: { id: classId },
+      data,
+      include: { batch: true, subject: true, dayEntry: { select: { id: true, date: true } } },
+    });
+
+    return res.json({ success: true, class: updated });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to update class" });
+  }
+};
+
+// ---------- DELETE /classes/:classId ----------
+export const deleteClass = async (req, res) => {
+  try {
+    const { classId } = req.params;
+    const userId = req.user.id;
+
+    const cls = await prisma.class.findUnique({
+      where: { id: classId },
+      include: { dayEntry: { include: { faculty: true } } },
+    });
+    if (!cls) {
+      return res.status(404).json({ success: false, message: "Class not found" });
+    }
+
+    const manager = await getManagerRecord(userId);
+    const isAdmin = req.user?.role === "ADMIN";
+    if (!isAdmin && (!manager || cls.dayEntry.faculty.managerId !== userId)) {
+      return res.status(403).json({ success: false, message: "Not allowed" });
+    }
+
+    await prisma.class.delete({ where: { id: classId } });
+
+    await prisma.dayEntry.update({
+      where: { id: cls.dayEntryId },
+      data: {
+        totalClasses: { decrement: 1 },
+        totalDuration: { decrement: cls.duration },
+      },
+    });
+
+    return res.json({ success: true, message: "Class deleted" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to delete class" });
+  }
+};
+
+// ---------- Batches ----------
+export const listBatches = async (req, res) => {
+  try {
+    const batches = await prisma.batch.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+    });
+    return res.json({ success: true, batches });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to list batches" });
+  }
+};
+
+export const createBatch = async (req, res) => {
+  try {
+    const { name, code, description, startDate, endDate } = req.body;
+    if (!name || !startDate) {
+      return res.status(400).json({ success: false, message: "name and startDate are required" });
+    }
+    const batch = await prisma.batch.create({
+      data: {
+        name,
+        code: code || null,
+        description: description || null,
+        startDate: new Date(startDate),
+        endDate: endDate ? new Date(endDate) : null,
+      },
+    });
+    return res.status(201).json({ success: true, batch });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to create batch" });
+  }
+};
+
+export const getBatchById = async (req, res) => {
+  try {
+    const { batchId } = req.params;
+    const batch = await prisma.batch.findUnique({
+      where: { id: batchId },
+      include: { classes: true },
+    });
+    if (!batch) {
+      return res.status(404).json({ success: false, message: "Batch not found" });
+    }
+    return res.json({ success: true, batch });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to get batch" });
+  }
+};
+
+export const updateBatch = async (req, res) => {
+  try {
+    const { batchId } = req.params;
+    const { name, code, description, startDate, endDate, isActive } = req.body;
+    const batch = await prisma.batch.update({
+      where: { id: batchId },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(code !== undefined && { code }),
+        ...(description !== undefined && { description }),
+        ...(startDate !== undefined && { startDate: new Date(startDate) }),
+        ...(endDate !== undefined && { endDate: endDate ? new Date(endDate) : null }),
+        ...(isActive !== undefined && { isActive }),
+      },
+    });
+    return res.json({ success: true, batch });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to update batch" });
+  }
+};
+
+export const deleteBatch = async (req, res) => {
+  try {
+    const { batchId } = req.params;
+    await prisma.batch.delete({ where: { id: batchId } });
+    return res.json({ success: true, message: "Batch deleted" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to delete batch" });
+  }
+};
+
+// ---------- Subjects ----------
+export const listSubjects = async (req, res) => {
+  try {
+    const subjects = await prisma.subject.findMany({
+      orderBy: { name: "asc" },
+    });
+    return res.json({ success: true, subjects });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to list subjects" });
+  }
+};
+
+export const createSubject = async (req, res) => {
+  try {
+    const { name, code, description } = req.body;
+    if (!name || !code) {
+      return res.status(400).json({ success: false, message: "name and code are required" });
+    }
+    const subject = await prisma.subject.create({
+      data: {
+        name,
+        code,
+        description: description || null,
+      },
+    });
+    return res.status(201).json({ success: true, subject });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to create subject" });
+  }
+};
+
+export const getSubjectById = async (req, res) => {
+  try {
+    const { subjectId } = req.params;
+    const subject = await prisma.subject.findUnique({
+      where: { id: subjectId },
+      include: { classes: true },
+    });
+    if (!subject) {
+      return res.status(404).json({ success: false, message: "Subject not found" });
+    }
+    return res.json({ success: true, subject });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to get subject" });
+  }
+};
+
+export const updateSubject = async (req, res) => {
+  try {
+    const { subjectId } = req.params;
+    const { name, code, description } = req.body;
+    const subject = await prisma.subject.update({
+      where: { id: subjectId },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(code !== undefined && { code }),
+        ...(description !== undefined && { description }),
+      },
+    });
+    return res.json({ success: true, subject });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to update subject" });
+  }
+};
+
+export const deleteSubject = async (req, res) => {
+  try {
+    const { subjectId } = req.params;
+    await prisma.subject.delete({ where: { id: subjectId } });
+    return res.json({ success: true, message: "Subject deleted" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to delete subject" });
+  }
+};
+
+// ---------- Get subjects for a faculty (ensure they exist in Subject table) ----------
+export const getFacultySubjects = async (req, res) => {
+  try {
+    const { facultyId } = req.params;
+    const userId = req.user?.id;
+    const isAdmin = req.user?.role === "ADMIN";
+
+    const faculty = await prisma.freelanceFaculty.findUnique({
+      where: { id: facultyId },
+      select: { id: true, subjects: true, managerId: true },
+    });
+
+    if (!faculty) {
+      return res.status(404).json({ success: false, message: "Faculty not found" });
+    }
+
+    if (!isAdmin) {
+      const manager = await getManagerRecord(userId);
+      if (!manager || faculty.managerId !== userId) {
+        return res.status(403).json({ success: false, message: "Not allowed" });
+      }
+    }
+
+    if (!faculty.subjects || !Array.isArray(faculty.subjects) || faculty.subjects.length === 0) {
+      return res.json({ success: true, subjects: [] });
+    }
+
+    // Get all existing subjects
+    const existingSubjects = await prisma.subject.findMany({
+      orderBy: { name: "asc" },
+    });
+
+    // Normalize existing subject names for matching
+    const existingSubjectNames = new Set(
+      existingSubjects.map((s) => s.name.trim().toLowerCase())
+    );
+
+    // Ensure all faculty subjects exist in Subject table
+    const subjectResults = [];
+    for (const subjectName of faculty.subjects) {
+      const normalizedName = subjectName.trim().toLowerCase();
+      let subject = existingSubjects.find(
+        (s) => s.name.trim().toLowerCase() === normalizedName
+      );
+
+      // If subject doesn't exist, create it
+      if (!subject) {
+        // Generate a code from the subject name
+        const code = subjectName
+          .trim()
+          .toUpperCase()
+          .replace(/\s+/g, "_")
+          .substring(0, 20);
+        
+        try {
+          subject = await prisma.subject.create({
+            data: {
+              name: subjectName.trim(),
+              code: code,
+            },
+          });
+          // Add to existingSubjects to avoid duplicate creation attempts
+          existingSubjects.push(subject);
+        } catch (createErr) {
+          // If code already exists, try with a unique suffix
+          if (createErr.code === "P2002") {
+            const uniqueCode = `${code}_${Date.now().toString().slice(-6)}`;
+            try {
+              subject = await prisma.subject.create({
+                data: {
+                  name: subjectName.trim(),
+                  code: uniqueCode,
+                },
+              });
+              existingSubjects.push(subject);
+            } catch (retryErr) {
+              console.error(`Failed to create subject ${subjectName} with unique code:`, retryErr);
+              continue;
+            }
+          } else {
+            console.error(`Failed to create subject ${subjectName}:`, createErr);
+            continue;
+          }
+        }
+      }
+
+      subjectResults.push(subject);
+    }
+
+    return res.json({ success: true, subjects: subjectResults });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to get faculty subjects" });
+  }
+};
