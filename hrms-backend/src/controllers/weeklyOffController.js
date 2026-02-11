@@ -111,53 +111,21 @@ export const assignWeeklyOff = async (req, res) => {
 
     // If exists → update old record
     if (existing) {
-  const data = { isFixed };
-
-  if (isFixed) {
-    if (!offDay) return res.status(400).json({ message: "offDay required" });
-    data.offDay = offDay;
-    data.offDate = null;
-  } else {
-    if (!offDate) return res.status(400).json({ message: "offDate required" });
-
-    const parsed = new Date(offDate);
-    if (isNaN(parsed)) return res.status(400).json({ message: "Invalid offDate" });
-
-    data.offDay = null;
-    data.offDate = parsed;
-  }
-
-  const updated = await prisma.weeklyOff.update({
-    where: { id: existing.id },
-    data,
-  });
-
-  return res.json({
-    success: true,
-    message: "Weekly Off Updated",
-    data: updated,
-  });
- }
+      const updated = await prisma.weeklyOff.update({
+        where: { id: existing.id },
+        data: { offDay, offDate: offDate || null, isFixed },
+      });
+      return res.json({
+        success: true,
+        message: "Weekly Off Updated",
+        data: updated,
+      });
+    }
 
     // Create new
- const data = { userId, isFixed };
-
-if (isFixed) {
-  if (!offDay) return res.status(400).json({ message: "offDay required for weekly off" });
-  data.offDay = offDay;
-  data.offDate = null;
-} else {
-  if (!offDate) return res.status(400).json({ message: "offDate required for roster off" });
-
-  const parsed = new Date(offDate);
-  if (isNaN(parsed)) return res.status(400).json({ message: "Invalid offDate" });
-
-  data.offDay = null;
-  data.offDate = parsed;
-}
-
-const created = await prisma.weeklyOff.create({ data });
-
+    const data = await prisma.weeklyOff.create({
+      data: { userId, offDay, offDate: new Date(offDate) || null, isFixed },
+    });
 
     return res.json({ success: true, message: "Weekly Off Assigned", data });
   } catch (e) {
@@ -195,10 +163,12 @@ export const getWeeklyOffs = async (req, res) => {
 /* =====================================================
    UPDATE SPECIFIC WEEKLY-OFF BY ID (PUT)
 ===================================================== */
+
 export const updateWeeklyOff = async (req, res) => {
   try {
     const { id } = req.params;
     const { offDay, offDate, isFixed } = req.body;
+
 
     const weeklyOff = await prisma.weeklyOff.findFirst({
       where: { id, user: { isActive: true } },
@@ -228,7 +198,7 @@ export const updateWeeklyOff = async (req, res) => {
 
     const updated = await prisma.weeklyOff.update({
       where: { id },
-      data,
+      data: { offDay, offDate: offDate || null, isFixed },
     });
 
     return res.json({
@@ -241,7 +211,6 @@ export const updateWeeklyOff = async (req, res) => {
     return res.status(500).json({ success: false, message: "Update failed" });
   }
 };
-
 
 /* =====================================================
    DELETE WEEKLY-OFF (DELETE)

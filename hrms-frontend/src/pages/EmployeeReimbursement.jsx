@@ -66,7 +66,8 @@ const loadMy = async () => {
 
   useEffect(() => {
     loadMy();
-  }, []);
+    console.log("List of bills:", list);
+  }, [list]);
 
   /* ======================================================
          UPLOAD BILL FILES
@@ -128,8 +129,9 @@ const loadMy = async () => {
       setTitle("");
       setDescription("");
       setBills([]);
+
+      loadMy();
       showMsg("Reimbursement submitted!", "success");
-      await loadMy();
     } finally {
       setSubmitting(false);
     }

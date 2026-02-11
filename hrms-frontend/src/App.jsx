@@ -23,6 +23,12 @@ import useAuthStore from "./stores/authstore";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import LayoutPremium from "./components/LayoutPremium";
+import FreelanceFacultyDashboard from "./pages/FreelanceFacultyDashboard.jsx";
+import FreelanceFacultyManagerView from "./pages/FreelanceFacultyManagerView.jsx";
+import FreelanceManagerDashboard from "./pages/FreelanceManagerDashboard.jsx";
+import FreelanceFAcultyManagerRoute from "./components/FreelanceFAcultyManagerRoute.jsx";
+import FreelanceFacultyPage from "./pages/FreelanceFacultyPage.jsx";
+
 
 export default function App() {
   const loading = useAuthStore((s) => s.loading);
@@ -71,6 +77,52 @@ export default function App() {
             <ProtectedRoute allowedRoles={["ADMIN"]}>
               <LayoutPremium>
                 <Employees />
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+        {/* ADMIN ONLY ROUTES */}
+        <Route
+          path="/freelanceManagers"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <LayoutPremium>
+                <FreelanceFacultyDashboard/>
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/freelanceManagers/:managerId"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <LayoutPremium>
+                <FreelanceFacultyManagerView />
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+        {/* ===============Freelance Managers Routes============= */}
+        <Route
+          path="/freelance"
+          element={
+            <ProtectedRoute allowedRoles={["LYF_EMPLOYEE"]}>
+              <LayoutPremium>
+                <FreelanceFAcultyManagerRoute>
+                  <FreelanceManagerDashboard/>
+                </FreelanceFAcultyManagerRoute>
+              </LayoutPremium>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/freelance/:facultyId"
+          element={
+            <ProtectedRoute allowedRoles={["LYF_EMPLOYEE"]}>
+              <LayoutPremium>
+                <FreelanceFAcultyManagerRoute>
+                  <FreelanceFacultyPage/>
+                </FreelanceFAcultyManagerRoute>
               </LayoutPremium>
             </ProtectedRoute>
           }

@@ -7,10 +7,15 @@ import {
 } from "react-icons/fi";
 import useAuthStore from "../stores/authstore";
 
+import { IoMdPeople } from "react-icons/io";
+
+import { fetchIsFreelanceManager } from "../api/freelanceFaculty";
+
 export default function SidebarPremium({ isOpen, toggleSidebar }) {
   const [openMenu, setOpenMenu] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
   const user = useAuthStore((s) => s.user);
+  const [isFreelanceManager,setIsFreelanceManager]=useState(false);
   const logout = useAuthStore((s) => s.logout);
   const isManager = user?.managedDepartments?.length > 0;
   const location = useLocation();
@@ -47,6 +52,17 @@ export default function SidebarPremium({ isOpen, toggleSidebar }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, isMobile, toggleSidebar]);
 
+  useEffect(()=>{
+    if(!user || user.role !== "LYF_EMPLOYEE") return;
+
+    let cancelled=false;
+    fetchIsFreelanceManager().then((isManager)=>{
+      if(!cancelled) setIsFreelanceManager(isManager);
+    }).catch(()=>{
+      cancelled=true;
+    })
+  },[user?.id,user?.role])
+
 const menus = [
   { title: "Dashboard", icon: <FiHome />, path: "/dashboard" },
 
@@ -61,6 +77,8 @@ const menus = [
   { title: "Attendance", icon: <FiClock />, path: "/attendance" },
   { title: "Employees", icon: <FiUsers />, path: "/employees", adminOnly: true },
   { title: "Departments", icon: <FiGrid />, path: "/departments", adminOnly: true },
+  { title: "Freelance Managers", icon: <IoMdPeople />, path: "/freelanceManagers", adminOnly: true },
+  { title: "Manage freelance faculty", icon: <IoMdPeople />, path: "/freelance",freelanceManagerOnly:true },
   { title: "Leaves/WFH", icon: <FiBookOpen />, path: "/leaves" },
   { title: "Reimbursement", icon: <FiFileText />, path: "/reimbursements" },
   { title: "Holidays", icon: <FiClock />, path: "/holidays", adminOnly: true },
@@ -149,6 +167,11 @@ const menus = [
     {menus.map((m, idx) => {
       if (m.adminOnly && user.role !== "ADMIN") return null;
       if (m.managerOnly && !isManager) return null;
+
+      // to check is employee faculty manager or not
+      if(m.freelanceManagerOnly && !(user.role === "LYF_EMPLOYEE" && isFreelanceManager)){
+        return null;
+      }
 
       /* ================= NORMAL MENU ================= */
       if (!m.children) {

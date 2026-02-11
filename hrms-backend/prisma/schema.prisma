@@ -55,6 +55,11 @@ model User {
   compOffs       CompOff[]
   weeklyOffs     WeeklyOff[]
 
+  // FREELANCE FACULTY SYSTEM
+  freelanceFacultyManagerRecord FreelanceFacultyManager?   @relation("FreelanceFacultyManagerEmployee")
+  managedFreelanceFaculties     FreelanceFaculty[]         @relation("FreelanceFacultyManager")
+  // createdFreelanceDayEntries    FreelanceFacultyDayEntry[] @relation("FreelanceFacultyDayEntryCreator")
+
   @@map("users")
 }
 
@@ -136,7 +141,7 @@ model Attendance {
 model AttendanceCorrection {
   id          String    @id @default(uuid())
   userId      String
-  date        DateTime   @db.Date 
+  date        DateTime  @db.Date
   reason      String
   checkIn     DateTime?
   checkOut    DateTime?
@@ -327,12 +332,134 @@ model ReimbursementApproval {
   @@unique([reimbursementId, managerId])
 }
 
+// ============================FREELANCE FACULTY MANAGER=====================
+model FreelanceFacultyManager {
+  id         String   @id @default(uuid())
+  employeeId String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  employee  User               @relation("FreelanceFacultyManagerEmployee", fields: [employeeId], references: [id])
+  faculties FreelanceFaculty[] @relation("FFM_Faculties")
+
+  @@map("freelance_faculty_managers")
+}
+
+// ==============================FREELANCE FACULTY========================
+model FreelanceFaculty {
+  id                  String   @id @default(uuid())
+  managerId           String // FK to User.id (the manager employee)
+  //new adddition
+  email               String?    @unique
+  phone               String?
+  joiningDate         DateTime  @default(now())
+  name                String
+  subjects            String[] // Array of subject names
+  preferredDaysOfWeek String[] // Array like ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+  status              String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  freelanceFacultyManagerId String
+
+  manager                   User                       @relation("FreelanceFacultyManager", fields: [managerId], references: [id])
+  dayEntries                DayEntry[]
+  freelanceFacultyManager   FreelanceFacultyManager   @relation("FFM_Faculties",fields: [freelanceFacultyManagerId], references: [id])
+
+  @@index([managerId])
+  @@map("freelance_faculties")
+}
+
+// Batch Model
+model Batch {
+  id          String            @id @default(cuid())
+  name        String
+  code        String?            @unique
+  description String?
+  startDate   DateTime
+  endDate     DateTime?
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  
+  // Relations
+  // assignments BatchAssignment[]
+  classes     Class[]
+  
+  @@map("batches")
+}
+
+// Subject Model
+model Subject {
+  id          String            @id @default(cuid())
+  name        String
+  code        String            @unique
+  description String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  
+  // Relations
+  classes     Class[]
+  // assignments BatchAssignment[]
+  
+  @@map("subjects")
+}
+
+
+// Day Entry Model (Main tracking table for each faculty per day)
+model DayEntry {
+  id              String    @id @default(cuid())
+  facultyId       String
+  date            DateTime  @db.Date
+  isPresent       Boolean   @default(true)
+  remarks         String?
+  totalClasses    Int       @default(0) // Computed field for quick access
+  totalDuration   Int       @default(0) // Total minutes, computed
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?   // Manager who created the entry
+  
+  // Relations
+  faculty         FreelanceFaculty   @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  classes         Class[]
+  
+  @@unique([facultyId, date])
+  @@index([facultyId, date])
+  @@index([date])
+  @@map("freelance_faculty_day_entries")
+}
+
+// Class Model (Individual class session)
+model Class {
+  id          String    @id @default(cuid())
+  dayEntryId  String
+  batchId     String
+  subjectId   String
+  topic       String
+  startTime   DateTime  @db.Time
+  endTime     DateTime  @db.Time
+  duration    Int       // Duration in minutes
+  notes       String?   // Additional notes about the class
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  dayEntry    DayEntry  @relation(fields: [dayEntryId], references: [id], onDelete: Cascade)
+  batch       Batch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  subject     Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  
+  @@index([dayEntryId])
+  @@index([batchId])
+  @@index([subjectId])
+  @@map("classes")
+}
+
 /// *
 ///  * ===================== ENUMS =====================
 enum Role {
   ADMIN
   AGILITY_EMPLOYEE
   LYF_EMPLOYEE
+  // FREELANCE_FACULTY_MANAGER
 }
 
 enum LeaveType {
