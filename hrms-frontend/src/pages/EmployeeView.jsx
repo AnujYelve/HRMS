@@ -1,8 +1,8 @@
 // src/pages/EmployeeView.jsx
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
-import { FiMail, FiUser, FiBriefcase, FiCalendar,  FiClock, FiCreditCard,} from "react-icons/fi";
+import { FiMail, FiUser, FiBriefcase, FiCalendar, FiClock, FiCreditCard, FiArrowLeft } from "react-icons/fi";
 
 const getWeekOffLabel = (weekOff) => {
   if (!weekOff) return "Not Assigned";
@@ -48,6 +48,7 @@ export default function EmployeeView() {
   const [emp, setEmp] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("attendance");
+  const navigate = useNavigate();
 
   const [limit, setLimit] = useState(50); // load more handler
 
@@ -75,6 +76,10 @@ const load = async () => {
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
+      <button onClick={() => navigate(-1)} className="mb-4 flex items-center gap-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition">
+        <FiArrowLeft className="text-xl" />
+        Back to Employees
+      </button>
 
       {/* 🔵 TOP PROFILE HEADER */}
       <div className="bg-white/70 dark:bg-gray-800/50 p-6 rounded-2xl shadow-xl backdrop-blur flex flex-col md:flex-row gap-6 items-center">

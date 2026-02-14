@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import api from "../api/axios";
-import { FiEdit, FiTrash2, FiPlus } from "react-icons/fi";
+import { FiEdit, FiTrash2, FiPlus, FiSearch } from "react-icons/fi";
 
 export default function Departments() {
   const [deps, setDeps] = useState([]);
@@ -287,6 +287,28 @@ function Modal({ children }) {
 function DepartmentForm({ submit, close, form, setForm, editDep, users, getFullName, saveLoading }) {
   const update = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
+  const [managerSearch, setManagerSearch] = useState("");
+
+  const filteredUsers = useMemo(() => {
+    if (!managerSearch.trim()) return users;
+    const q = managerSearch.trim().toLowerCase();
+    return users.filter(
+      (u) =>
+        getFullName(u).toLowerCase().includes(q) ||
+        (u.role && u.role.toLowerCase().includes(q)) ||
+        (u.email && u.email.toLowerCase().includes(q))
+    );
+  }, [users, managerSearch, getFullName]);
+
+  const toggleManager = (id) => {
+    setForm((prev) => ({
+      ...prev,
+      managerIds: prev.managerIds.includes(id)
+        ? prev.managerIds.filter((x) => x !== id)
+        : [...prev.managerIds, id],
+    }));
+  };
+
   return (
     <>
       <h3 className="text-2xl font-semibold mb-4">
@@ -301,25 +323,55 @@ function DepartmentForm({ submit, close, form, setForm, editDep, users, getFullN
           onChange={(e) => update("name", e.target.value)}
         />
 
-    <select
-  multiple
-  className="input"
-  value={form.managerIds}
-  onChange={(e) =>
-    setForm((prev) => ({
-      ...prev,
-      managerIds: Array.from(e.target.selectedOptions).map(
-        (o) => o.value
-      ),
-    }))
-  }
->
-  {users.map((u) => (
-    <option key={u.id} value={u.id}>
-      {getFullName(u)} ({u.role})
-    </option>
-  ))}
-</select>
+<div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Select Manager
+          </label>
+          <div className="border border-gray-300 dark:border-gray-600 rounded-xl overflow-hidden bg-gray-50 dark:bg-gray-800/50">
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800">
+              <FiSearch className="text-gray-500 shrink-0" />
+              <input
+                type="text"
+                placeholder="Search by name, role or email..."
+                value={managerSearch}
+                onChange={(e) => setManagerSearch(e.target.value)}
+                className="flex-1 min-w-0 py-1.5 bg-transparent border-0 focus:ring-0 text-gray-900 dark:text-white placeholder-gray-400"
+              />
+            </div>
+            <div className="max-h-48 overflow-y-auto p-2">
+              {filteredUsers.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400 py-2 text-center">
+                  No users match your search
+                </p>
+              ) : (
+                filteredUsers.map((u) => {
+                  const selected = form.managerIds.includes(u.id);
+                  return (
+                    <label
+                      key={u.id}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                        selected
+                          ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-200"
+                          : "hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => toggleManager(u.id)}
+                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-sm font-medium">{getFullName(u)}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        ({u.role})
+                      </span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
 
         <div className="flex justify-end gap-3 pt-3">
           <button

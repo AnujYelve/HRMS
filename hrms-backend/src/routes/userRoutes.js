@@ -6,7 +6,9 @@ import {
   updateUser,
   deleteUser,
   updateMyProfile,
-  getUserFullDetails
+  getUserFullDetails,
+  toggleUserStatus,
+
 } from "../controllers/userController.js";
 
 import { requireAuth } from "../middlewares/auth.js";
@@ -65,6 +67,14 @@ router.put(
   "/:id",
   requireAuth(["ADMIN", "AGILITY_EMPLOYEE", "LYF_EMPLOYEE"]),
   updateUser
+);
+/* -----------------------------------------------------------
+   🔥 TOGGLE USER ACTIVE / INACTIVE (ADMIN ONLY)
+------------------------------------------------------------ */
+router.patch(
+  "/:id/toggle-status",
+  requireAuth(["ADMIN"]),
+  toggleUserStatus
 );
 
 /* -----------------------------------------------------------
