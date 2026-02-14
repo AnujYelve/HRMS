@@ -276,11 +276,9 @@ export const listUsers = async (req, res) => {
     /* ====================================================
        ADMIN → FULL DATA
     ==================================================== */
-    if (requester.role === "ADMIN") {
-      const users = await prisma.user.findMany({
-          where: {
-    isActive: true, // 👈 yahin
-  },
+if (requester.role === "ADMIN") {
+  const users = await prisma.user.findMany({
+    where: {},
         select: {
           ...baseSelect,
           email: true,
@@ -785,7 +783,70 @@ export const deleteUser = async (req, res) => {
     if (requester.role !== "ADMIN") {
       return res.status(403).json({
         success: false,
-        message: "Only admin can deactivate users",
+        message: "Only admin can delete users",
+      });
+    }
+
+    if (requester.id === targetId) {
+      return res.status(400).json({
+        success: false,
+        message: "Admin cannot delete themselves",
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: targetId },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // 🔥 CASCADE DELETE (Prisma will handle related records if onDelete: Cascade is set)
+    // Refresh tokens (explicit delete if cascade not set)
+    await prisma.refreshToken.deleteMany({
+      where: { userId: targetId },
+    });
+
+    // Delete user (cascade will delete: leaves, attendances, reimbursements, notifications, payrolls, etc.)
+    await prisma.user.delete({
+      where: { id: targetId },
+    });
+
+    return res.json({
+      success: true,
+      message: "Employee deleted successfully",
+    });
+  } catch (err) {
+    console.error("deleteUser ERROR:", err);
+    
+    // Handle foreign key constraint errors
+    if (err.code === "P2003") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete user: related records exist. Please set cascade delete in schema.",
+      });
+    }
+    
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const toggleUserStatus = async (req, res) => {
+  try {
+    const requester = req.user;
+    const targetId = req.params.id;
+
+    if (requester.role !== "ADMIN") {
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can change status",
       });
     }
 
@@ -807,24 +868,21 @@ export const deleteUser = async (req, res) => {
       });
     }
 
-    await prisma.user.update({
-      where: { id: targetId },
-      data: {
-        isActive: false,
-        email: `inactive_${Date.now()}_${user.email}`, // 🔐 avoid unique conflict
-      },
-    });
-
-await prisma.refreshToken.deleteMany({
-  where: { userId: targetId },
+const updated = await prisma.user.update({
+  where: { id: targetId },
+  data: {
+    isActive: !user.isActive,
+  },
 });
 
     return res.json({
       success: true,
-      message: "User deactivated successfully",
+      message: `User ${updated.isActive ? "activated" : "deactivated"} successfully`,
+      user: updated,
     });
+
   } catch (err) {
-    console.error("deleteUser ERROR:", err);
+    console.error("toggleUserStatus ERROR:", err);
     return res.status(500).json({
       success: false,
       message: "Internal server error",

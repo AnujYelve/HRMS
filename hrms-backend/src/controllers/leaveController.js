@@ -71,8 +71,8 @@ async function syncAttendanceWithLeave(leave) {
   });
 
   let cur = new Date(start);
-  cur.setHours(0, 0, 0, 0);
-
+  cur.setUTCHours(0,0,0,0);
+  
   while (cur <= end) {
     const iso = toISO(cur);
     const dayName = cur.toLocaleDateString("en-US", { weekday: "long" });
@@ -245,9 +245,16 @@ if (
       index === self.findIndex(manager => manager.id === m.id)
     );
     
-    if(uniqueManagers.length === 0)
-      return res.status(400).json({ success:false,message:"No manager assigned" });
+let approvers = [...uniqueManagers];
 
+if (approvers.length === 0) {
+  const admins = await prisma.user.findMany({
+    where: { role: "ADMIN", isActive: true },
+    select: { id: true, email: true }
+  });
+
+  approvers = admins;
+}
     const admins = await prisma.user.findMany({
     where: { role: "ADMIN", isActive: true },
     select: { id: true, email: true }

@@ -30,6 +30,8 @@ export default function Employees() {
   const [saveLoading, setSaveLoading] = useState(false);      // for create/update
   const [deleteLoadingId, setDeleteLoadingId] = useState(null); // unique delete row wait
 
+  const [toggleLoadingId, setToggleLoadingId] = useState(null);
+
   // Form
   const emptyForm = {
     firstName: "",
@@ -150,6 +152,22 @@ const submit = async (e) => {
   }
 };
 
+const handleToggleStatus = async (id) => {
+  try {
+    setToggleLoadingId(id);
+
+    await api.patch(`/users/${id}/toggle-status`);
+
+    setMsg("User status updated");
+    setMsgType("success");
+    load();
+  } catch (err) {
+    setMsg(err.response?.data?.message || "Error updating status");
+    setMsgType("error");
+  } finally {
+    setToggleLoadingId(null);
+  }
+};
 
   /* =======================================================
          UI
@@ -189,15 +207,16 @@ const submit = async (e) => {
         {loading ? (
           <div className="text-center py-6">Loading...</div>
         ) : (
-     <EmployeesTable
+<EmployeesTable
   users={users}
   askDelete={askDelete}
   openEdit={openEdit}
   me={me}
   departments={departments}
   navigate={navigate}
-
-  deleteLoadingId={deleteLoadingId}   // ⬅ row loading support
+  deleteLoadingId={deleteLoadingId}
+  toggleLoadingId={toggleLoadingId}
+  handleToggleStatus={handleToggleStatus}
 />
         )}
       </GlassCard>
@@ -283,7 +302,8 @@ function Modal({ children }) {
   );
 }
 
-function EmployeesTable({ users, askDelete, openEdit, me, departments, navigate, deleteLoadingId }) {
+function EmployeesTable({
+  users, askDelete, openEdit, me, departments, navigate, deleteLoadingId, toggleLoadingId, handleToggleStatus}) {
   return (
     <>
       {/* ===== MOBILE CARD VIEW (xs, sm) ===== */}
@@ -327,6 +347,25 @@ function EmployeesTable({ users, askDelete, openEdit, me, departments, navigate,
                 >
                   <FiEdit size={16} />
                 </button>
+{/* Toggle Active / Inactive */}
+<button
+  onClick={(e) => {
+    e.stopPropagation();
+    handleToggleStatus(u.id);
+  }}
+  disabled={toggleLoadingId === u.id}
+  className={`p-2 rounded-lg text-white ${
+    u.isActive
+      ? "bg-yellow-500"
+      : "bg-green-600"
+  } disabled:opacity-50`}
+>
+  {toggleLoadingId === u.id
+    ? "..."
+    : u.isActive
+    ? "Off"
+    : "On"}
+</button>
 
               <button
   onClick={(e) => {
@@ -350,25 +389,27 @@ function EmployeesTable({ users, askDelete, openEdit, me, departments, navigate,
       {/* ===== DESKTOP TABLE VIEW ===== */}
       <div className="hidden sm:block overflow-x-auto w-full rounded-xl">
         <table className="w-full text-left border-collapse min-w-[700px]">
-          <thead>
-            <tr className="border-b dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
-              <th className="p-3 text-sm">Name</th>
-              <th className="p-3 text-sm">Email</th>
-              <th className="p-3 text-sm">Role</th>
-              <th className="p-3 text-sm">Department</th>
-              {me?.role === "ADMIN" && (
-                <th className="p-3 text-sm text-right">Actions</th>
-              )}
-            </tr>
-          </thead>
+<thead>
+  <tr className="border-b dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+    <th className="p-3 text-sm">Name</th>
+    <th className="p-3 text-sm">Email</th>
+    <th className="p-3 text-sm">Role</th>
+    <th className="p-3 text-sm">Department</th>
+    <th className="p-3 text-sm text-center">Actions</th>
+  </tr>
+</thead>
 
           <tbody>
             {users.map((u) => (
-              <tr
-                key={u.id}
-                onClick={() => navigate(`/employees/${u.id}`)}
-                className="border-b dark:border-gray-800 hover:bg-indigo-100 dark:hover:bg-gray-700 cursor-pointer transition"
-              >
+<tr
+  key={u.id}
+  onClick={() => navigate(`/employees/${u.id}`)}
+  className={`border-b dark:border-gray-800 cursor-pointer transition
+    ${!u.isActive
+      ? "opacity-50"
+      : "hover:bg-indigo-100 dark:hover:bg-gray-700"}`}
+>
+
                 <td className="p-3 text-sm whitespace-nowrap">
                   {u.firstName} {u.lastName}
                 </td>
@@ -397,6 +438,25 @@ function EmployeesTable({ users, askDelete, openEdit, me, departments, navigate,
                       >
                         <FiEdit size={16} />
                       </button>
+                      {/* Toggle Active / Inactive */}
+<button
+  onClick={(e) => {
+    e.stopPropagation();
+    handleToggleStatus(u.id);
+  }}
+  disabled={toggleLoadingId === u.id}
+  className={`p-2 rounded-lg text-white ${
+    u.isActive
+      ? "bg-yellow-500 hover:bg-yellow-600"
+      : "bg-gray-600 hover:bg-gray-700"
+  } disabled:opacity-50`}
+>
+  {toggleLoadingId === u.id
+    ? "..."
+    : u.isActive
+    ? "Click For Deactivate"
+    : "Click For Activate"}
+</button>
 
                       {/* Delete */}
                 <button

@@ -30,7 +30,7 @@ model User {
   payrolls           Payroll[]
   refreshTokens      RefreshToken[]
   departments        UserDepartment[]
-  department         Department?      @relation("DepartmentUsers", fields: [departmentId], references: [id])
+  department         Department?      @relation("DepartmentUsers", fields: [departmentId], references: [id], onDelete: SetNull)
   managedDepartments Department[]     @relation("DepartmentManagers")
 
   // 🔥 LEAVE SYSTEM
@@ -57,7 +57,6 @@ model User {
   // FREELANCE FACULTY SYSTEM
   freelanceFacultyManagerRecord FreelanceFacultyManager? @relation("FreelanceFacultyManagerEmployee")
   managedFreelanceFaculties     FreelanceFaculty[]       @relation("FreelanceFacultyManager")
-  // createdFreelanceDayEntries    FreelanceFacultyDayEntry[] @relation("FreelanceFacultyDayEntryCreator")
 
   @@map("users")
 }
@@ -70,7 +69,7 @@ model WeeklyOff {
   offDay    String? // "Monday" (Weekly Off)
   offDate   DateTime? // One time Date Off
   isFixed   Boolean   @default(true) // true=Weekly repeated, false=Roster/one-time
-  user      User      @relation(fields: [userId], references: [id])
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime  @default(now())
 }
 
@@ -86,7 +85,7 @@ model CompOff {
   expiryDate DateTime?
   note       String?
 
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -111,8 +110,8 @@ model UserDepartment {
   id           String     @id @default(uuid())
   userId       String
   departmentId String
-  department   Department @relation(fields: [departmentId], references: [id])
-  user         User       @relation(fields: [userId], references: [id])
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, departmentId])
   @@map("user_departments")
@@ -130,7 +129,7 @@ model Attendance {
   note                String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
-  user                User      @relation(fields: [userId], references: [id])
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   lateHalfDayEligible Boolean   @default(false)
 
   @@unique([userId, date])
@@ -140,18 +139,18 @@ model Attendance {
 model AttendanceCorrection {
   id          String    @id @default(uuid())
   userId      String
-  date        DateTime  @db.Date
+  date        DateTime  @db.Date 
   reason      String
   checkIn     DateTime?
   checkOut    DateTime?
-  witnessId   String? // 👈 NEW
-  witness     User?     @relation("CorrectionWitness", fields: [witnessId], references: [id])
+  witnessId   String?      // 👈 NEW
+  witness     User? @relation("CorrectionWitness", fields: [witnessId], references: [id], onDelete: SetNull)
   status      String    @default("PENDING") // PENDING | APPROVED | REJECTED
   adminReason String?
   createdAt   DateTime  @default(now())
   decidedAt   DateTime?
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date]) // same day duplicate request block
 }
@@ -171,7 +170,7 @@ model Leave {
 
   // ✅ RESPONSIBLE PERSON (SAFE SYNTAX)
   responsiblePersonId String?
-  responsiblePerson   User?   @relation("LeaveResponsible", fields: [responsiblePersonId], references: [id])
+  responsiblePerson   User?   @relation("LeaveResponsible", fields: [responsiblePersonId], references: [id], onDelete: SetNull)
 
   // ✅ ADD THESE (SOFT DELETE)
   isAdminDeleted    Boolean @default(false)
@@ -180,8 +179,8 @@ model Leave {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  approver  User?           @relation("LeaveApprover", fields: [approverId], references: [id])
-  user      User            @relation(fields: [userId], references: [id])
+  approver  User?           @relation("LeaveApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   approvals LeaveApproval[]
 
   @@index([userId, startDate, endDate])
@@ -201,7 +200,7 @@ model Payroll {
   slipUrl     String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id])
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, salaryMonth])
   @@map("payrolls")
@@ -221,7 +220,7 @@ model Reimbursement {
   isEmployeeDeleted Boolean             @default(false)
   rejectReason      String?
   bills             Bill[]
-  user              User                @relation(fields: [userId], references: [id])
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   approvals ReimbursementApproval[]
 }
@@ -234,7 +233,7 @@ model Bill {
   fileUrl         String
   amount          Float
   note            String?
-  reimbursement   Reimbursement @relation(fields: [reimbursementId], references: [id])
+  reimbursement   Reimbursement @relation(fields: [reimbursementId], references: [id], onDelete: Cascade)
 }
 
 /// *
@@ -248,7 +247,7 @@ model Notification {
   meta      Json?
   createdAt DateTime @default(now())
   readByIds String[] @default([])
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
 }
@@ -262,7 +261,7 @@ model RefreshToken {
   revoked   Boolean  @default(false)
   expiresAt DateTime
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("refresh_tokens")
 }
@@ -273,7 +272,7 @@ model RefreshToken {
 model Resignation {
   id     String @id @default(uuid())
   userId String
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Form fields
   lastWorking    DateTime
@@ -301,8 +300,8 @@ model LeaveApproval {
   reason    String?
   actedAt   DateTime?
 
-  leave   Leave @relation(fields: [leaveId], references: [id])
-  manager User  @relation(fields: [managerId], references: [id])
+  leave   Leave @relation(fields: [leaveId], references: [id], onDelete: Cascade)
+  manager User  @relation(fields: [managerId], references: [id], onDelete: Cascade)
 
   @@unique([leaveId, managerId]) // 1 manager = 1 decision per leave
 }
@@ -325,8 +324,8 @@ model ReimbursementApproval {
   reason          String?
   actedAt         DateTime?
 
-  reimbursement Reimbursement @relation(fields: [reimbursementId], references: [id])
-  manager       User          @relation(fields: [managerId], references: [id])
+  reimbursement Reimbursement @relation(fields: [reimbursementId], references: [id], onDelete: Cascade)
+  manager       User          @relation(fields: [managerId], references: [id], onDelete: Cascade)
 
   @@unique([reimbursementId, managerId])
 }
@@ -338,7 +337,7 @@ model FreelanceFacultyManager {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  employee  User               @relation("FreelanceFacultyManagerEmployee", fields: [employeeId], references: [id])
+  employee  User               @relation("FreelanceFacultyManagerEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
   faculties FreelanceFaculty[] @relation("FFM_Faculties")
 
   @@map("freelance_faculty_managers")
@@ -359,10 +358,10 @@ model FreelanceFaculty {
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
   freelanceFacultyManagerId String
-
-  manager                 User                    @relation("FreelanceFacultyManager", fields: [managerId], references: [id])
-  dayEntries              DayEntry[]
-  freelanceFacultyManager FreelanceFacultyManager @relation("FFM_Faculties", fields: [freelanceFacultyManagerId], references: [id])
+ 
+  manager                   User                       @relation("FreelanceFacultyManager", fields: [managerId], references: [id], onDelete: Cascade)
+  dayEntries                DayEntry[]
+  freelanceFacultyManager   FreelanceFacultyManager   @relation("FFM_Faculties",fields: [freelanceFacultyManagerId], references: [id], onDelete: Cascade)
   youtubeLectures         YoutubeLecture[]
 
   @@index([managerId])

@@ -52,11 +52,9 @@ const SmallMonthCalendar = ({ attendance = [] }) => {
   const last = new Date(year, month + 1, 0);
 
   const attMap = {};
-  attendance.forEach((a) => {
-    const iso =
-      typeof a.date === "string"
-        ? a.date.slice(0, 10)
-        : new Date(a.date).toLocaleDateString("en-CA");
+attendance.forEach((a) => {
+  const iso = new Date(a.date).toISOString().slice(0, 10);
+
 attMap[iso] = {
   present:
     a.status === "PRESENT" ||
@@ -66,7 +64,6 @@ attMap[iso] = {
   wfh: a.status === "WFH",
   compOff: a.status === "COMP_OFF",
   leave:
-  a.status === "LEAVE" ||
   a.status === "PAID" ||
   a.status === "SICK" ||
   a.status === "CASUAL" ||
@@ -90,7 +87,7 @@ attMap[iso] = {
 
   for (let d = 1; d <= last.getDate(); d++) {
     const date = new Date(year, month, d);
-    const iso = date.toLocaleDateString("en-CA");
+    const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
     const rec = attMap[iso] || {};
 
     cells.push({
